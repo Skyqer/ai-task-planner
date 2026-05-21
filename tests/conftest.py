@@ -1,5 +1,6 @@
 """Test fixtures."""
 
+# pyrefly: ignore [missing-import]
 import pytest
 
 

@@ -2,6 +2,7 @@
 
 import json
 
+# pyrefly: ignore [missing-import]
 import pytest
 
 from app.llm.base import BaseLLMProvider

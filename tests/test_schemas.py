@@ -1,8 +1,11 @@
 """Tests for Pydantic schemas."""
 
+# pyrefly: ignore [missing-import]
 import pytest
+# pyrefly: ignore [missing-import]
 from pydantic import ValidationError
 
+# pyrefly: ignore [missing-import]
 from app.schemas.planner import PlannerResponseSchema
 from app.schemas.task import DeadlineSchema, FixedTimeSchema, TaskSchema
 
