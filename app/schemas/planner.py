@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import enum
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,8 +23,8 @@ class PlannerStatus(str, enum.Enum):
 class ScheduleSuggestionSchema(BaseModel):
     """Suggested time slot for a task."""
 
-    start: str | None = None
-    end: str | None = None
+    start: Optional[str] = None
+    end: Optional[str] = None
     task_title: str = ""
     reason: str = ""
 

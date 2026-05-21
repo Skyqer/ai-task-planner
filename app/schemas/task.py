@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import enum
-from datetime import date, time
+import datetime
+from datetime import time
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -26,16 +28,16 @@ class DeadlineKind(str, enum.Enum):
 class DeadlineSchema(BaseModel):
     """Deadline sub-object."""
 
-    date: date | None = None
-    time: str | None = Field(None, pattern=r"^\d{2}:\d{2}$")
-    kind: DeadlineKind | None = None
+    date: Optional[datetime.date] = None
+    time: Optional[str] = None
+    kind: Optional[DeadlineKind] = None
 
 
 class FixedTimeSchema(BaseModel):
     """Fixed time sub-object for hard-scheduled events."""
 
-    date: date | None = None
-    time: str | None = Field(None, pattern=r"^\d{2}:\d{2}$")
+    date: Optional[datetime.date] = None
+    time: Optional[str] = None
 
 
 class TaskSchema(BaseModel):

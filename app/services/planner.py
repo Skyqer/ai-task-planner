@@ -107,14 +107,24 @@ class CorePlanner:
             dl = task.deadline.date
             kwargs["deadline_date"] = date_type.fromisoformat(dl) if isinstance(dl, str) else dl
             if task.deadline.time:
-                p = task.deadline.time.split(":")
-                kwargs["deadline_time"] = time_type(int(p[0]), int(p[1]))
+                # Handle potential ranges like "01:00-01:30" by taking the first part
+                time_str = task.deadline.time.split("-")[0].strip()
+                p = time_str.split(":")
+                try:
+                    kwargs["deadline_time"] = time_type(int(p[0]), int(p[1]))
+                except (ValueError, IndexError):
+                    pass
             if task.deadline.kind:
                 kwargs["deadline_kind"] = DeadlineKind(task.deadline.kind.value)
         if task.fixed_time and task.fixed_time.date:
             ft = task.fixed_time.date
             kwargs["fixed_time_date"] = date_type.fromisoformat(ft) if isinstance(ft, str) else ft
             if task.fixed_time.time:
-                p = task.fixed_time.time.split(":")
-                kwargs["fixed_time_time"] = time_type(int(p[0]), int(p[1]))
+                # Handle potential ranges like "01:00-01:30"
+                time_str = task.fixed_time.time.split("-")[0].strip()
+                p = time_str.split(":")
+                try:
+                    kwargs["fixed_time_time"] = time_type(int(p[0]), int(p[1]))
+                except (ValueError, IndexError):
+                    pass
         await repo.create_task(session, user_id, **kwargs)

@@ -56,7 +56,37 @@ SYSTEM_PROMPT = """\
 - если дедлайн и длительность конфликтуют с оставшимся временем → priority 5 и warning
 
 Формат ответа:
-Всегда возвращай ТОЛЬКО JSON.
+Всегда возвращай ТОЛЬКО JSON объект строго следующей структуры:
+{{
+  "mode": "task_input" | "morning_brief",
+  "status": "ok" | "needs_clarification",
+  "timezone": "Europe/Kyiv",
+  "summary": "Краткий ответ пользователю для Telegram (что добавлено/изменено)",
+  "warnings": ["строка"],
+  "clarification_questions": ["строка"],
+  "tasks": [
+    {{
+      "title": "Название задачи",
+      "details": "Детали",
+      "type": "study|home|health|errand|sport|work|other",
+      "priority": 3,
+      "estimated_minutes": 30,
+      "weather_sensitive": false,
+      "tags": [],
+      "deadline": {{"date": "YYYY-MM-DD" | null, "time": "HH:MM" | null, "kind": "hard|soft" | null}},
+      "fixed_time": {{"date": "YYYY-MM-DD" | null, "time": "HH:MM" | null}}
+    }}
+  ],
+  "schedule_suggestions": [
+    {{
+      "start": "HH:MM" | null,
+      "end": "HH:MM" | null,
+      "task_title": "строка",
+      "reason": "строка"
+    }}
+  ]
+}}
+
 Никакого markdown.
 Никаких комментариев.
 Никаких лишних слов.

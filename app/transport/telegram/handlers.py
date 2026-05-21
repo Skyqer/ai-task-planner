@@ -15,8 +15,14 @@ from app.transport.telegram.formatter import format_planner_response, format_tas
 logger = logging.getLogger(__name__)
 router = Router()
 
-# Core planner is injected at startup via router context
-# Access: router["planner"]
+# Core planner is injected at startup via set_planner
+_planner = None
+
+
+def set_planner(planner) -> None:
+    """Inject the core planner instance."""
+    global _planner
+    _planner = planner
 
 
 @router.message(Command("start"))
@@ -87,7 +93,7 @@ async def cmd_delete(message: types.Message) -> None:
 
     args = (message.text or "").split(maxsplit=1)
     if len(args) < 2 or not args[1].strip().isdigit():
-        await message.answer("Использование: /delete <номер задачи>")
+        await message.answer("Использование: /delete [номер задачи]")
         return
 
     idx = int(args[1].strip()) - 1
@@ -108,13 +114,12 @@ async def cmd_morning(message: types.Message) -> None:
     if not message.from_user:
         return
 
-    planner = router.get("planner")
-    if not planner:
+    if not _planner:
         await message.answer("⚠️ Планировщик не инициализирован.")
         return
 
     async with async_session_factory() as session:
-        response = await planner.process_message(
+        response = await _planner.process_message(
             session, message.from_user.id, "проснулся"
         )
 
@@ -128,13 +133,12 @@ async def handle_text(message: types.Message) -> None:
     if not message.from_user or not message.text:
         return
 
-    planner = router.get("planner")
-    if not planner:
+    if not _planner:
         await message.answer("⚠️ Планировщик не инициализирован.")
         return
 
     async with async_session_factory() as session:
-        response = await planner.process_message(
+        response = await _planner.process_message(
             session, message.from_user.id, message.text
         )
 
@@ -146,7 +150,7 @@ async def _change_task_status(message: types.Message, action: str) -> None:
     """Helper to complete or cancel a task by number."""
     args = (message.text or "").split(maxsplit=1)
     if len(args) < 2 or not args[1].strip().isdigit():
-        await message.answer(f"Использование: /{action.split('_')[0]} <номер задачи>")
+        await message.answer(f"Использование: /{action.split('_')[0]} [номер задачи]")
         return
 
     idx = int(args[1].strip()) - 1

@@ -66,13 +66,13 @@ async def lifespan(app: FastAPI):
     if settings.telegram_bot_token:
         from aiogram.types import Update
         from app.transport.telegram.bot import create_bot, create_dispatcher
-        from app.transport.telegram.handlers import router as tg_router
+        from app.transport.telegram.handlers import router as tg_router, set_planner as set_tg_planner
 
         bot = create_bot(settings)
         dp = create_dispatcher()
 
-        # Inject planner into the router context
-        tg_router["planner"] = planner
+        # Inject planner into the telegram handlers
+        set_tg_planner(planner)
 
         # Set up notification callback for scheduler
         class TelegramNotifier:

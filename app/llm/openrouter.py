@@ -44,16 +44,9 @@ class OpenRouterProvider(BaseLLMProvider):
             "temperature": 0.3,
         }
 
-        # Structured output via json_schema
+        # Structured output via json_object
         if response_schema is not None:
-            kwargs["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "planner_response",
-                    "strict": True,
-                    "schema": response_schema,
-                },
-            }
+            kwargs["response_format"] = {"type": "json_object"}
             # Enable response healing plugin for robustness
             kwargs["extra_headers"] = {
                 "X-Title": "TaskPlanner",

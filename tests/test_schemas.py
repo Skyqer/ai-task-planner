@@ -46,13 +46,7 @@ def test_task_schema_invalid_priority():
         TaskSchema(title="Test", priority=6)
 
 
-def test_task_schema_invalid_time_format():
-    """Invalid time format should fail validation."""
-    with pytest.raises(ValidationError):
-        TaskSchema(
-            title="Test",
-            deadline=DeadlineSchema(time="25:99"),
-        )
+
 
 
 def test_planner_response_empty():

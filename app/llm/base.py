@@ -59,12 +59,13 @@ class BaseLLMProvider(ABC):
     @staticmethod
     def _parse_response(raw: str) -> PlannerResponseSchema:
         """Parse raw LLM output into PlannerResponseSchema."""
-        # Strip markdown code fences if present
+        # Strip markdown code fences or conversational filler
         text = raw.strip()
-        if text.startswith("```"):
-            # Remove first line (```json) and last line (```)
-            lines = text.split("\n")
-            text = "\n".join(lines[1:-1]).strip()
+        if not text.startswith("{"):
+            start_idx = text.find("{")
+            end_idx = text.rfind("}")
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                text = text[start_idx : end_idx + 1]
 
         try:
             data = json.loads(text)
