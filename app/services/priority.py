@@ -53,7 +53,7 @@ class PriorityEngine:
 
     def _apply_fixed_time_rule(self, task: TaskSchema, today: date) -> None:
         """Fixed time today → minimum priority 4."""
-        if task.fixed_time.date and task.fixed_time.time:
+        if task.fixed_time and task.fixed_time.date and task.fixed_time.time:
             if task.fixed_time.date == today.isoformat() or task.fixed_time.date == today:
                 task.priority = max(task.priority, 4)
 
@@ -61,7 +61,7 @@ class PriorityEngine:
         self, task: TaskSchema, now: datetime, today: date
     ) -> None:
         """Apply deadline-based priority adjustments and warnings."""
-        if not task.deadline.date:
+        if not task.deadline or not task.deadline.date:
             return
 
         deadline_date = task.deadline.date
@@ -139,7 +139,7 @@ class PriorityEngine:
         """Detect overlapping fixed-time tasks."""
         fixed_tasks = []
         for t in tasks:
-            if t.fixed_time.time and t.fixed_time.date:
+            if t.fixed_time and t.fixed_time.time and t.fixed_time.date:
                 ft_date = t.fixed_time.date
                 if isinstance(ft_date, str):
                     try:

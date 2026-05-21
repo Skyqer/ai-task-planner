@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import enum
-from typing import Optional
+from typing import Annotated, Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 from app.schemas.task import TaskSchema
 
@@ -29,6 +29,12 @@ class ScheduleSuggestionSchema(BaseModel):
     reason: str = ""
 
 
+def _ensure_list(v: Any) -> list[Any]:
+    if isinstance(v, str):
+        return [v]
+    return v if isinstance(v, list) else []
+
+
 class PlannerResponseSchema(BaseModel):
     """Top-level response from the core planner.
 
@@ -43,6 +49,10 @@ class PlannerResponseSchema(BaseModel):
     schedule_suggestions: list[ScheduleSuggestionSchema] = Field(
         default_factory=list
     )
-    warnings: list[str] = Field(default_factory=list)
-    clarification_questions: list[str] = Field(default_factory=list)
+    warnings: Annotated[list[str], BeforeValidator(_ensure_list)] = Field(
+        default_factory=list
+    )
+    clarification_questions: Annotated[
+        list[str], BeforeValidator(_ensure_list)
+    ] = Field(default_factory=list)
     summary: str = ""

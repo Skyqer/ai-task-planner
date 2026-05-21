@@ -10,7 +10,13 @@ from aiogram.filters import Command
 
 from app.db.engine import async_session_factory
 from app.db import repository as repo
-from app.transport.telegram.formatter import format_planner_response, format_task_list
+from app.transport.telegram.formatter import (
+    format_planner_response,
+    format_task_list,
+    get_main_keyboard,
+    get_tasks_keyboard,
+)
+from app.transport.telegram.callbacks import TaskActionCallback
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -39,14 +45,10 @@ async def cmd_start(message: types.Message) -> None:
         )
 
     await message.answer(
-        "👋 Привет! Я — твой планировщик задач.\n\n"
+        "👋 Привет! Я — твой AI-планировщик задач.\n\n"
         "Просто напиши, что нужно сделать, и я разберу это в задачи.\n\n"
-        "Команды:\n"
-        "/tasks — активные задачи\n"
-        "/done — завершить задачу\n"
-        "/cancel — отменить задачу\n"
-        "/delete — удалить задачу\n"
-        "/morning — утренняя сводка\n"
+        "Вы можете использовать кнопки внизу или отправлять команды.",
+        reply_markup=get_main_keyboard(),
     )
 
 
@@ -64,7 +66,7 @@ async def cmd_tasks(message: types.Message) -> None:
         return
 
     text = format_task_list(tasks)
-    await message.answer(text)
+    await message.answer(text, reply_markup=get_tasks_keyboard(tasks))
 
 
 @router.message(Command("done"))
@@ -133,6 +135,14 @@ async def handle_text(message: types.Message) -> None:
     if not message.from_user or not message.text:
         return
 
+    text_val = message.text.strip()
+    if text_val == "📋 Мои задачи":
+        await cmd_tasks(message)
+        return
+    if text_val == "🌅 Мой день":
+        await cmd_morning(message)
+        return
+
     if not _planner:
         await message.answer("⚠️ Планировщик не инициализирован.")
         return
@@ -143,7 +153,41 @@ async def handle_text(message: types.Message) -> None:
         )
 
     text = format_planner_response(response)
-    await message.answer(text)
+    await message.answer(text, reply_markup=get_main_keyboard())
+
+
+@router.callback_query(TaskActionCallback.filter())
+async def handle_task_action(
+    callback: types.CallbackQuery, callback_data: TaskActionCallback
+) -> None:
+    """Handle inline button clicks for tasks."""
+    if not callback.message:
+        return
+
+    try:
+        task_uuid = uuid.UUID(callback_data.task_id)
+    except ValueError:
+        await callback.answer("Ошибка: неверный ID задачи.")
+        return
+
+    async with async_session_factory() as session:
+        if callback_data.action == "done":
+            await repo.mark_completed(session, task_uuid)
+            await callback.answer("✅ Выполнено!")
+        elif callback_data.action == "delete":
+            await repo.soft_delete_task(session, task_uuid)
+            await callback.answer("🗑 Удалено.")
+
+        # Refresh active tasks for the user
+        tasks = await repo.get_active_tasks(session, callback.from_user.id)
+
+    text = format_task_list(tasks)
+    markup = get_tasks_keyboard(tasks)
+
+    try:
+        await callback.message.edit_text(text, reply_markup=markup)
+    except Exception:
+        pass  # Message content might be identical
 
 
 async def _change_task_status(message: types.Message, action: str) -> None:

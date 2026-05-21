@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+
 from app.schemas.planner import PlannerResponseSchema
+from app.transport.telegram.callbacks import TaskActionCallback
 
 # Priority emoji mapping
 _PRIORITY_EMOJI = {
@@ -34,18 +38,18 @@ def format_planner_response(response: PlannerResponseSchema) -> str:
             details = []
             if task.estimated_minutes:
                 details.append(f"~{task.estimated_minutes} мин")
-            if task.deadline.time:
+            if task.deadline and task.deadline.time:
                 kind = "⏰" if task.deadline.kind and task.deadline.kind.value == "hard" else "🕐"
                 details.append(f"{kind} до {task.deadline.time}")
-            if task.deadline.date:
+            if task.deadline and task.deadline.date:
                 details.append(f"📅 {task.deadline.date}")
-            if task.fixed_time.time:
+            if task.fixed_time and task.fixed_time.time:
                 details.append(f"📌 в {task.fixed_time.time}")
             if task.type:
                 details.append(f"[{task.type.value}]")
 
             if details:
-                line += f"\n   {' · '.join(details)}"
+                line += f"\n   └ <i>{' · '.join(details)}</i>"
             task_lines.append(line)
 
         parts.append("\n".join(task_lines))
@@ -86,7 +90,7 @@ def format_task_list(tasks) -> str:
     if not tasks:
         return "📋 Нет активных задач."
 
-    lines = ["📋 <b>Активные задачи:</b>\n"]
+    lines = ["✨ <b>Ваши активные задачи</b>\n"]
     for i, task in enumerate(tasks, 1):
         emoji = _PRIORITY_EMOJI.get(task.priority, "⚪")
         line = f"{emoji} <b>{i}. {task.title}</b>"
@@ -104,7 +108,39 @@ def format_task_list(tasks) -> str:
             details.append(f"[{task.status.value}]")
 
         if details:
-            line += f"\n   {' · '.join(details)}"
+            line += f"\n   └ <i>{' · '.join(details)}</i>\n"
         lines.append(line)
 
     return "\n".join(lines)
+
+
+def get_main_keyboard() -> ReplyKeyboardMarkup:
+    """Get the persistent main menu keyboard."""
+    builder = ReplyKeyboardBuilder()
+    builder.button(text="📋 Мои задачи")
+    builder.button(text="🌅 Мой день")
+    builder.adjust(2)
+    return builder.as_markup(resize_keyboard=True, persistent=True)
+
+
+def get_tasks_keyboard(tasks) -> InlineKeyboardMarkup | None:
+    """Get an inline keyboard for task actions."""
+    if not tasks:
+        return None
+
+    builder = InlineKeyboardBuilder()
+    for i, task in enumerate(tasks, 1):
+        # We use short UUIDs or just the full UUID if it fits (callback data limit is 64 bytes)
+        # We will use TaskActionCallback
+        builder.button(
+            text=f"✅ {i}",
+            callback_data=TaskActionCallback(action="done", task_id=str(task.id)).pack(),
+        )
+        builder.button(
+            text=f"🗑 {i}",
+            callback_data=TaskActionCallback(action="delete", task_id=str(task.id)).pack(),
+        )
+
+    # Adjust to 2 buttons per row (✅ and 🗑 for each task)
+    builder.adjust(2)
+    return builder.as_markup()
