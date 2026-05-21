@@ -1,0 +1,165 @@
+"""Telegram message and command handlers."""
+
+from __future__ import annotations
+
+import logging
+import uuid
+
+from aiogram import Router, types
+from aiogram.filters import Command
+
+from app.db.engine import async_session_factory
+from app.db import repository as repo
+from app.transport.telegram.formatter import format_planner_response, format_task_list
+
+logger = logging.getLogger(__name__)
+router = Router()
+
+# Core planner is injected at startup via router context
+# Access: router["planner"]
+
+
+@router.message(Command("start"))
+async def cmd_start(message: types.Message) -> None:
+    """Welcome message + user registration."""
+    if not message.from_user:
+        return
+
+    async with async_session_factory() as session:
+        await repo.get_or_create_user(
+            session,
+            user_id=message.from_user.id,
+            username=message.from_user.username,
+        )
+
+    await message.answer(
+        "👋 Привет! Я — твой планировщик задач.\n\n"
+        "Просто напиши, что нужно сделать, и я разберу это в задачи.\n\n"
+        "Команды:\n"
+        "/tasks — активные задачи\n"
+        "/done — завершить задачу\n"
+        "/cancel — отменить задачу\n"
+        "/delete — удалить задачу\n"
+        "/morning — утренняя сводка\n"
+    )
+
+
+@router.message(Command("tasks"))
+async def cmd_tasks(message: types.Message) -> None:
+    """List active tasks."""
+    if not message.from_user:
+        return
+
+    async with async_session_factory() as session:
+        tasks = await repo.get_active_tasks(session, message.from_user.id)
+
+    if not tasks:
+        await message.answer("📋 Нет активных задач.")
+        return
+
+    text = format_task_list(tasks)
+    await message.answer(text)
+
+
+@router.message(Command("done"))
+async def cmd_done(message: types.Message) -> None:
+    """Mark a task as completed. Usage: /done <task_number>"""
+    if not message.from_user:
+        return
+
+    await _change_task_status(message, "completed")
+
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: types.Message) -> None:
+    """Cancel a task. Usage: /cancel <task_number>"""
+    if not message.from_user:
+        return
+
+    await _change_task_status(message, "cancelled")
+
+
+@router.message(Command("delete"))
+async def cmd_delete(message: types.Message) -> None:
+    """Soft-delete a task. Usage: /delete <task_number>"""
+    if not message.from_user:
+        return
+
+    args = (message.text or "").split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip().isdigit():
+        await message.answer("Использование: /delete <номер задачи>")
+        return
+
+    idx = int(args[1].strip()) - 1
+    async with async_session_factory() as session:
+        tasks = await repo.get_active_tasks(session, message.from_user.id)
+        if idx < 0 or idx >= len(tasks):
+            await message.answer(f"Нет задачи с номером {idx + 1}.")
+            return
+
+        task = tasks[idx]
+        await repo.soft_delete_task(session, task.id)
+        await message.answer(f"🗑 Удалена: {task.title}")
+
+
+@router.message(Command("morning"))
+async def cmd_morning(message: types.Message) -> None:
+    """Trigger morning briefing manually."""
+    if not message.from_user:
+        return
+
+    planner = router.get("planner")
+    if not planner:
+        await message.answer("⚠️ Планировщик не инициализирован.")
+        return
+
+    async with async_session_factory() as session:
+        response = await planner.process_message(
+            session, message.from_user.id, "проснулся"
+        )
+
+    text = format_planner_response(response)
+    await message.answer(text)
+
+
+@router.message()
+async def handle_text(message: types.Message) -> None:
+    """Handle any text message — pass to core planner."""
+    if not message.from_user or not message.text:
+        return
+
+    planner = router.get("planner")
+    if not planner:
+        await message.answer("⚠️ Планировщик не инициализирован.")
+        return
+
+    async with async_session_factory() as session:
+        response = await planner.process_message(
+            session, message.from_user.id, message.text
+        )
+
+    text = format_planner_response(response)
+    await message.answer(text)
+
+
+async def _change_task_status(message: types.Message, action: str) -> None:
+    """Helper to complete or cancel a task by number."""
+    args = (message.text or "").split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip().isdigit():
+        await message.answer(f"Использование: /{action.split('_')[0]} <номер задачи>")
+        return
+
+    idx = int(args[1].strip()) - 1
+    async with async_session_factory() as session:
+        tasks = await repo.get_active_tasks(session, message.from_user.id)
+        if idx < 0 or idx >= len(tasks):
+            await message.answer(f"Нет задачи с номером {idx + 1}.")
+            return
+
+        task = tasks[idx]
+        if action == "completed":
+            await repo.mark_completed(session, task.id)
+            await message.answer(f"✅ Завершена: {task.title}")
+        else:
+            await repo.mark_cancelled(session, task.id)
+            await message.answer(f"❌ Отменена: {task.title}")
