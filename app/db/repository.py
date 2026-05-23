@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.message import MemorySummaryORM, MessageORM, MessageRole
+from app.models.reminder import ReminderORM, ReminderStatus
 from app.models.task import TaskORM, TaskStatus
 from app.models.user import UserORM
 
@@ -251,4 +252,177 @@ async def get_or_create_user(
 async def get_all_users(session: AsyncSession) -> list[UserORM]:
     """Get all registered users."""
     result = await session.execute(select(UserORM))
+    return list(result.scalars().all())
+
+
+# ── Reminder CRUD ────────────────────────────────────────────────────────────
+
+
+async def create_reminder(
+    session: AsyncSession,
+    task_id: uuid.UUID,
+    user_id: int,
+    remind_at: datetime,
+    task_title: str = "",
+) -> ReminderORM:
+    """Create a new reminder for a task."""
+    reminder = ReminderORM(
+        task_id=task_id,
+        user_id=user_id,
+        remind_at=remind_at,
+        task_title=task_title,
+    )
+    session.add(reminder)
+    await session.commit()
+    await session.refresh(reminder)
+    return reminder
+
+
+async def get_pending_reminders(
+    session: AsyncSession, before: datetime
+) -> list[ReminderORM]:
+    """Get reminders that are due and not yet acknowledged."""
+    stmt = (
+        select(ReminderORM)
+        .where(
+            ReminderORM.remind_at <= before,
+            ReminderORM.status.in_([
+                ReminderStatus.PENDING,
+                ReminderStatus.SENT,
+            ]),
+        )
+        .order_by(ReminderORM.remind_at)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def acknowledge_reminder(
+    session: AsyncSession, reminder_id: uuid.UUID
+) -> ReminderORM | None:
+    """Mark a reminder as acknowledged."""
+    stmt = select(ReminderORM).where(ReminderORM.id == reminder_id)
+    result = await session.execute(stmt)
+    reminder = result.scalar_one_or_none()
+    if reminder:
+        reminder.status = ReminderStatus.ACKNOWLEDGED
+        reminder.acknowledged_at = datetime.now(timezone.utc)
+        await session.commit()
+    return reminder
+
+
+async def update_reminder_sent(
+    session: AsyncSession, reminder_id: uuid.UUID
+) -> None:
+    """Increment sent_count and update last_sent_at."""
+    stmt = select(ReminderORM).where(ReminderORM.id == reminder_id)
+    result = await session.execute(stmt)
+    reminder = result.scalar_one_or_none()
+    if reminder:
+        reminder.sent_count += 1
+        reminder.last_sent_at = datetime.now(timezone.utc)
+        reminder.status = ReminderStatus.SENT
+        if reminder.sent_count >= 5:
+            reminder.status = ReminderStatus.EXPIRED
+        await session.commit()
+
+
+async def get_reminders_for_task(
+    session: AsyncSession, task_id: uuid.UUID
+) -> list[ReminderORM]:
+    """Get all reminders for a specific task."""
+    stmt = (
+        select(ReminderORM)
+        .where(ReminderORM.task_id == task_id)
+        .order_by(ReminderORM.remind_at)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+# ── Recurrence CRUD ──────────────────────────────────────────────────────────
+
+
+async def get_active_recurrences(
+    session: AsyncSession, user_id: int
+) -> list:
+    """Get all active recurring tasks for a user."""
+    from app.models.task import RecurrenceORM, TaskORM
+    from sqlalchemy.orm import joinedload
+    stmt = (
+        select(RecurrenceORM)
+        .join(TaskORM, RecurrenceORM.task_id == TaskORM.id)
+        .options(joinedload(RecurrenceORM.task))
+        .where(
+            TaskORM.user_id == user_id,
+            RecurrenceORM.is_active.is_(True)
+        )
+        .order_by(RecurrenceORM.next_run)
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def cancel_recurrence(
+    session: AsyncSession, recurrence_id: uuid.UUID
+) -> bool:
+    """Deactivate a recurring task."""
+    from app.models.task import RecurrenceORM
+    stmt = select(RecurrenceORM).where(RecurrenceORM.id == recurrence_id)
+    result = await session.execute(stmt)
+    rec = result.scalar_one_or_none()
+    if not rec:
+        return False
+    rec.is_active = False
+    await session.commit()
+    return True
+
+# ── Routine Learning ─────────────────────────────────────────────────────────
+
+async def log_task_completion(
+    session: AsyncSession,
+    user_id: int,
+    task_id: uuid.UUID,
+    task_type: str,
+    completed_at: datetime,
+) -> None:
+    """Log when a task was completed for routine learning."""
+    from app.models.routine import TaskCompletionLogORM
+    
+    # Calculate minutes since midnight
+    local_dt = completed_at
+    if local_dt.tzinfo:
+        try:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo("Europe/Kyiv")
+            local_dt = completed_at.astimezone(tz)
+        except Exception:
+            pass
+            
+    minutes_since_midnight = local_dt.hour * 60 + local_dt.minute
+    
+    log = TaskCompletionLogORM(
+        user_id=user_id,
+        task_id=task_id,
+        task_type=task_type,
+        completed_at=completed_at,
+        time_of_day_minutes=minutes_since_midnight,
+    )
+    session.add(log)
+    await session.commit()
+
+
+async def get_task_completion_logs(
+    session: AsyncSession, user_id: int, task_type: str
+) -> list[int]:
+    """Get completion times (in minutes since midnight) for a task type."""
+    from app.models.routine import TaskCompletionLogORM
+    stmt = (
+        select(TaskCompletionLogORM.time_of_day_minutes)
+        .where(
+            TaskCompletionLogORM.user_id == user_id,
+            TaskCompletionLogORM.task_type == task_type
+        )
+    )
+    result = await session.execute(stmt)
     return list(result.scalars().all())

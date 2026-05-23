@@ -2,6 +2,7 @@
 
 from datetime import datetime, time
 
+import sqlalchemy
 from sqlalchemy import BigInteger, DateTime, String, Time
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +20,9 @@ class UserORM(Base):
     weather_city: Mapped[str] = mapped_column(String(100), default="Uzhhorod")
     morning_brief_time: Mapped[time] = mapped_column(
         Time, default=time(8, 0)
+    )
+    energy_profile: Mapped[dict | None] = mapped_column(
+        type_=sqlalchemy.JSON, nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

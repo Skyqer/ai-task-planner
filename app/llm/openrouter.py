@@ -42,6 +42,7 @@ class OpenRouterProvider(BaseLLMProvider):
             "model": self._model,
             "messages": messages,
             "temperature": 0.3,
+            "max_tokens": 1500,
         }
 
         # Structured output via json_object
@@ -55,9 +56,15 @@ class OpenRouterProvider(BaseLLMProvider):
         logger.debug("OpenRouter request: model=%s", self._model)
 
         response = await self._client.chat.completions.create(**kwargs)
-        content = response.choices[0].message.content or ""
+        
+        content = ""
+        if response and response.choices and len(response.choices) > 0:
+            content = response.choices[0].message.content or ""
 
         logger.debug("OpenRouter response length: %d chars", len(content))
+        if not content:
+            raise ValueError("Empty or invalid response from OpenRouter.")
+            
         return content
 
     async def generate_summary(self, messages_text: str) -> str:

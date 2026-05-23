@@ -52,5 +52,8 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 60
     llm_max_retries: int = 3
 
+    # ── Voice ────────────────────────────────────────────────────────
+    whisper_model_size: str = "base"
+
 
 settings = Settings()

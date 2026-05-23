@@ -17,6 +17,25 @@ services:
       retries: 5
     restart: unless-stopped
 
+  app:
+    build: .
+    container_name: planner_app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://planner:planner_secret@postgres:5432/planner
+      - HF_HOME=/root/.cache/huggingface
+    env_file:
+      - .env
+    volumes:
+      - whisper_cache:/root/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   planner_pgdata:
     name: planner_pgdata
+  whisper_cache:
+    name: whisper_cache

@@ -33,11 +33,13 @@ class CorePlanner:
 
     def __init__(self, llm: BaseLLMProvider, weather: WeatherService,
                  memory: MemoryManager, priority: PriorityEngine,
+                 constraints: ConstraintService,
                  timezone_name: str = "Europe/Kyiv") -> None:
         self._llm = llm
         self._weather = weather
         self._memory = memory
         self._priority = priority
+        self._constraints = constraints
         self._tz_name = timezone_name
 
     def _now(self) -> datetime:
@@ -50,6 +52,8 @@ class CorePlanner:
     async def process_message(self, session: AsyncSession,
                               user_id: int, text: str) -> PlannerResponseSchema:
         await repo.get_or_create_user(session, user_id)
+        await self._constraints.ensure_defaults(session, user_id)
+        
         await self._memory.add_message(session, user_id, "user", text)
 
         context = await self._memory.get_context(session, user_id)
@@ -62,11 +66,17 @@ class CorePlanner:
         now = self._now()
         weather_text = weather_data.to_context_string() if weather_data else "Данные о погоде недоступны."
 
+        user_constraints = await self._constraints.get_constraints(session, user_id)
+        constraints_text = "\n".join(
+            f"- {c.label} ({c.start_time}-{c.end_time})" for c in user_constraints
+        ) if user_constraints else "Нет блокировок в расписании."
+
         system = SYSTEM_PROMPT.format(
             current_datetime=now.strftime("%Y-%m-%d %H:%M:%S"),
             timezone=self._tz_name,
             weather_data=weather_text,
             existing_tasks=context.active_tasks_text,
+            existing_constraints=constraints_text,
             conversation_context=context.to_context_string(),
         )
 
@@ -75,11 +85,37 @@ class CorePlanner:
         except Exception as exc:
             logger.error("LLM call failed: %s", exc)
             response = PlannerResponseSchema(
-                summary="Ошибка при обработке. Попробуйте ещё раз.",
-                warnings=[f"LLM error: {exc}"],
+                summary="Произошла техническая заминка при обращении к ИИ. Попробуйте ещё раз или переформулируйте запрос.",
+                warnings=["Сервис ИИ временно недоступен или вернул пустой ответ."],
             )
 
         response = self._priority.process(response, weather=weather_data, original_text=text)
+
+        # Process deleted constraints
+        for label in response.deleted_constraints:
+            try:
+                removed = await self._constraints.remove_constraint_by_label(session, user_id, label)
+                if not removed:
+                    response.warnings.append(f"Не удалось найти правило в расписании для удаления: '{label}'")
+            except Exception as exc:
+                logger.error("Failed to remove constraint '%s': %s", label, exc)
+
+        # Process added constraints
+        for c in response.added_constraints:
+            try:
+                from app.models.constraint import ConstraintType
+                ctype = ConstraintType(c.constraint_type) if c.constraint_type in [t.value for t in ConstraintType] else ConstraintType.UNAVAILABLE
+                await self._constraints.add_constraint(
+                    session=session,
+                    user_id=user_id,
+                    constraint_type=ctype,
+                    start_time=c.start_time,
+                    end_time=c.end_time,
+                    label=c.label
+                )
+            except Exception as exc:
+                logger.error("Failed to add constraint '%s': %s", c.label, exc)
+                response.warnings.append(f"Не удалось добавить правило '{c.label}'")
 
         for task in response.tasks:
             try:
@@ -127,4 +163,39 @@ class CorePlanner:
                     kwargs["fixed_time_time"] = time_type(int(p[0]), int(p[1]))
                 except (ValueError, IndexError):
                     pass
-        await repo.create_task(session, user_id, **kwargs)
+        task_orm = await repo.create_task(session, user_id, **kwargs)
+        
+        # Auto-create reminder (2 hours before) if fixed_time or deadline is set
+        remind_time = None
+        if task_orm.fixed_time_date and task_orm.fixed_time_time:
+            dt = datetime.combine(task_orm.fixed_time_date, task_orm.fixed_time_time)
+            # Make timezone aware if needed, assuming local timezone for now
+            try:
+                from zoneinfo import ZoneInfo
+                # Use a default or passed timezone, hardcode Kyiv for now as in planner init
+                tz = ZoneInfo("Europe/Kyiv")
+                dt = dt.replace(tzinfo=tz)
+            except Exception:
+                pass
+            remind_time = dt - timedelta(hours=2)
+        elif task_orm.deadline_date and task_orm.deadline_time:
+            dt = datetime.combine(task_orm.deadline_date, task_orm.deadline_time)
+            try:
+                from zoneinfo import ZoneInfo
+                tz = ZoneInfo("Europe/Kyiv")
+                dt = dt.replace(tzinfo=tz)
+            except Exception:
+                pass
+            remind_time = dt - timedelta(hours=2)
+            
+        if remind_time:
+            # Only create reminder if it's in the future
+            now = datetime.now(remind_time.tzinfo)
+            if remind_time > now:
+                await repo.create_reminder(
+                    session,
+                    task_id=task_orm.id,
+                    user_id=user_id,
+                    remind_at=remind_time,
+                    task_title=task_orm.title,
+                )

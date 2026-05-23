@@ -29,6 +29,13 @@ class ScheduleSuggestionSchema(BaseModel):
     reason: str = ""
 
 
+class AddedConstraintSchema(BaseModel):
+    constraint_type: str = "unavailable"
+    start_time: str
+    end_time: str
+    label: str
+
+
 def _ensure_list(v: Any) -> list[Any]:
     if isinstance(v, str):
         return [v]
@@ -55,4 +62,8 @@ class PlannerResponseSchema(BaseModel):
     clarification_questions: Annotated[
         list[str], BeforeValidator(_ensure_list)
     ] = Field(default_factory=list)
+    deleted_constraints: Annotated[
+        list[str], BeforeValidator(_ensure_list)
+    ] = Field(default_factory=list)
+    added_constraints: list[AddedConstraintSchema] = Field(default_factory=list)
     summary: str = ""

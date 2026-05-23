@@ -74,8 +74,8 @@ class BaseLLMProvider(ABC):
             logger.error("Failed to parse LLM response: %s\nRaw: %s", exc, raw[:500])
             return PlannerResponseSchema(
                 status="ok",
-                warnings=[f"Ошибка разбора ответа LLM: {exc}"],
-                summary="Не удалось обработать ответ. Попробуйте переформулировать.",
+                warnings=["Ответ нейросети оказался неполным или некорректным."],
+                summary="Не удалось распознать ответ нейросети. Попробуйте переформулировать ваш запрос.",
             )
 
     @abstractmethod

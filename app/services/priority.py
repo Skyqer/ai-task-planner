@@ -41,7 +41,8 @@ class PriorityEngine:
 
         for task in response.tasks:
             self._apply_fixed_time_rule(task, today)
-            self._apply_deadline_rules(task, now, today)
+            self._apply_deadline_rules(task, now, today, response)
+            self._apply_type_rules(task)
             self._apply_urgency_keywords(task, original_text)
             self._apply_weather_impact(task, weather, response)
 
@@ -58,7 +59,7 @@ class PriorityEngine:
                 task.priority = max(task.priority, 4)
 
     def _apply_deadline_rules(
-        self, task: TaskSchema, now: datetime, today: date
+        self, task: TaskSchema, now: datetime, today: date, response: PlannerResponseSchema
     ) -> None:
         """Apply deadline-based priority adjustments and warnings."""
         if not task.deadline or not task.deadline.date:
@@ -74,6 +75,9 @@ class PriorityEngine:
         if deadline_date < today:
             # Overdue
             task.priority = 5
+            warn_msg = f"⚠️ Задача '{task.title}' просрочена!"
+            if warn_msg not in response.warnings:
+                response.warnings.append(warn_msg)
             return
 
         if deadline_date == today:
@@ -103,8 +107,16 @@ class PriorityEngine:
                         and remaining.total_seconds() / 60 < task.estimated_minutes
                     ):
                         task.priority = 5
+                        warn_msg = f"⚠️ На задачу '{task.title}' может не хватить времени до дедлайна."
+                        if warn_msg not in response.warnings:
+                            response.warnings.append(warn_msg)
                 except (ValueError, IndexError):
                     pass
+
+    def _apply_type_rules(self, task: TaskSchema) -> None:
+        """Boost priority for specific task types like study or work."""
+        if task.type and task.type.value in ("study", "work"):
+            task.priority = min(task.priority + 1, 4)
 
     def _apply_urgency_keywords(
         self, task: TaskSchema, original_text: str

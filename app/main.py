@@ -17,6 +17,9 @@ from app.services.planner import CorePlanner
 from app.services.priority import PriorityEngine
 from app.services.scheduler import SchedulerService
 from app.services.weather import WeatherService
+from app.services.constraints import ConstraintService
+from app.services.timeline import TimelineEngine
+from app.services.voice import VoiceTranscriptionService
 from app.transport.api.routes import api_router, set_planner
 
 logging.basicConfig(
@@ -44,13 +47,20 @@ async def lifespan(app: FastAPI):
     weather = WeatherService(settings)
     priority = PriorityEngine(settings.timezone)
     memory = MemoryManager(settings, llm)
+    constraints = ConstraintService()
     planner = CorePlanner(
         llm=llm,
         weather=weather,
         memory=memory,
         priority=priority,
+        constraints=constraints,
         timezone_name=settings.timezone,
     )
+    
+    from app.services.rescheduler import ReschedulerService
+    timeline = TimelineEngine(constraints, settings.timezone, weather)
+    voice = VoiceTranscriptionService()
+    rescheduler = ReschedulerService(timeline, settings.timezone)
 
     # 4. Set planner for REST API
     set_planner(planner)
@@ -66,13 +76,18 @@ async def lifespan(app: FastAPI):
     if settings.telegram_bot_token:
         from aiogram.types import Update
         from app.transport.telegram.bot import create_bot, create_dispatcher
-        from app.transport.telegram.handlers import router as tg_router, set_planner as set_tg_planner
+        from app.transport.telegram.handlers import (
+            router as tg_router, 
+            set_planner as set_tg_planner,
+            set_services as set_tg_services,
+        )
 
         bot = create_bot(settings)
         dp = create_dispatcher()
 
         # Inject planner into the telegram handlers
         set_tg_planner(planner)
+        set_tg_services(timeline=timeline, voice=voice, constraints=constraints)
 
         # Set up notification callback for scheduler
         class TelegramNotifier:
@@ -81,8 +96,15 @@ async def lifespan(app: FastAPI):
                     await bot.send_message(user_id, message, parse_mode="HTML")
                 except Exception as exc:
                     logger.error("Telegram send failed: %s", exc)
+                    
+            async def send_with_keyboard(self, user_id: int, message: str, keyboard) -> None:
+                try:
+                    await bot.send_message(user_id, message, parse_mode="HTML", reply_markup=keyboard)
+                except Exception as exc:
+                    logger.error("Telegram send with keyboard failed: %s", exc)
 
         scheduler.set_notifier(TelegramNotifier())
+        scheduler.set_rescheduler(rescheduler)
         scheduler.start()
 
         if settings.bot_mode == "polling":
