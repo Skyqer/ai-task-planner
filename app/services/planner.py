@@ -119,7 +119,7 @@ class CorePlanner:
 
         for task in response.tasks:
             try:
-                await self._save_task(session, user_id, task)
+                await self._save_task(session, user_id, task, self._tz_name)
             except Exception as exc:
                 logger.error("Failed to save task '%s': %s", task.title, exc)
                 response.warnings.append(f"Не удалось сохранить: '{task.title}'")
@@ -128,7 +128,16 @@ class CorePlanner:
         return response
 
     @staticmethod
-    async def _save_task(session: AsyncSession, user_id: int, task) -> None:
+    async def _save_task(session: AsyncSession, user_id: int, task, tz_name: str = "Europe/Kyiv") -> None:
+        from datetime import datetime, timezone, timedelta
+        try:
+            from zoneinfo import ZoneInfo
+            tz_info = ZoneInfo(tz_name)
+            offset = tz_info.utcoffset(datetime.now(tz_info))
+            tz = timezone(offset)
+        except Exception:
+            tz = timezone(timedelta(hours=2))
+
         kwargs: dict = {
             "title": task.title,
             "details": task.details or None,
@@ -147,7 +156,7 @@ class CorePlanner:
                 time_str = task.deadline.time.split("-")[0].strip()
                 p = time_str.split(":")
                 try:
-                    kwargs["deadline_time"] = time_type(int(p[0]), int(p[1]))
+                    kwargs["deadline_time"] = time_type(int(p[0]), int(p[1]), tzinfo=tz)
                 except (ValueError, IndexError):
                     pass
             if task.deadline.kind:
@@ -160,7 +169,7 @@ class CorePlanner:
                 time_str = task.fixed_time.time.split("-")[0].strip()
                 p = time_str.split(":")
                 try:
-                    kwargs["fixed_time_time"] = time_type(int(p[0]), int(p[1]))
+                    kwargs["fixed_time_time"] = time_type(int(p[0]), int(p[1]), tzinfo=tz)
                 except (ValueError, IndexError):
                     pass
         task_orm = await repo.create_task(session, user_id, **kwargs)

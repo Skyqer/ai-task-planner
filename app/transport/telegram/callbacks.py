@@ -15,6 +15,7 @@ class ReminderAckCallback(CallbackData, prefix="remind"):
 class VoiceConfirmCallback(CallbackData, prefix="voice"):
     action: str  # "confirm", "reject"
     user_id: int
+    msg_id: int
 
 
 class RecurrenceActionCallback(CallbackData, prefix="recur"):

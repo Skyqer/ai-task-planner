@@ -265,18 +265,18 @@ async def handle_voice(message: types.Message) -> None:
             builder.button(
                 text="✅ Да, верно",
                 callback_data=VoiceConfirmCallback(
-                    action="confirm", user_id=message.from_user.id
+                    action="confirm", user_id=message.from_user.id, msg_id=message.message_id
                 ).pack(),
             )
             builder.button(
                 text="❌ Нет, введу текстом",
                 callback_data=VoiceConfirmCallback(
-                    action="reject", user_id=message.from_user.id
+                    action="reject", user_id=message.from_user.id, msg_id=message.message_id
                 ).pack(),
             )
             builder.adjust(2)
 
-            _pending_voice[message.from_user.id] = result.text
+            _pending_voice[f"{message.from_user.id}:{message.message_id}"] = result.text
 
             lang_label = {"ru": "🇷🇺", "uk": "🇺🇦", "en": "🇬🇧"}.get(result.language, "🌐")
             await message.answer(
@@ -399,8 +399,9 @@ async def handle_voice_confirm(
 
     user_id = callback_data.user_id
 
+    key = f"{user_id}:{callback_data.msg_id}"
     if callback_data.action == "reject":
-        _pending_voice.pop(user_id, None)
+        _pending_voice.pop(key, None)
         await callback.answer("Хорошо, введите текст вручную.")
         try:
             await callback.message.edit_text(
@@ -411,12 +412,22 @@ async def handle_voice_confirm(
         return
 
     # Confirm — process the pending text
-    text = _pending_voice.pop(user_id, None)
+    text = _pending_voice.pop(key, None)
     if not text:
-        await callback.answer("Текст не найден, попробуйте ещё раз.")
+        await callback.answer("Текст не найден, попробуйте ещё раз.", show_alert=True)
+        try:
+            await callback.message.edit_text(
+                callback.message.text + "\n\n❌ <b>Текст не найден</b>",
+            )
+        except Exception:
+            pass
         return
 
-    await callback.answer("Обрабатываю...")
+    await callback.answer()
+    try:
+        await callback.message.edit_text(callback.message.text + "\n\n⏳ <b>Обрабатываю...</b>")
+    except Exception:
+        pass
 
     if _planner:
         async with async_session_factory() as session:
@@ -424,9 +435,12 @@ async def handle_voice_confirm(
 
         reply = format_planner_response(response)
         try:
-            await callback.message.edit_text(
-                callback.message.text + f"\n\n{reply}",
-            )
+            # We assume "⏳ Обрабатываю..." is at the end of the text
+            new_text = callback.message.text.replace("⏳ Обрабатываю...", reply)
+            # if replace failed (due to formatting), just append or re-edit
+            if new_text == callback.message.text:
+                new_text = callback.message.text + f"\n\n{reply}"
+            await callback.message.edit_text(new_text)
         except Exception:
             await callback.message.answer(reply, reply_markup=get_main_keyboard())
 

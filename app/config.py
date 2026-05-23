@@ -20,15 +20,19 @@ class Settings(BaseSettings):
     )
 
     # ── LLM Provider ─────────────────────────────────────────────────
-    llm_provider: Literal["openrouter", "ollama"] = "openrouter"
+    llm_provider: Literal["openrouter", "ollama", "google"] = "openrouter"
 
     # OpenRouter
     openrouter_api_key: str = ""
     openrouter_model: str = "deepseek/deepseek-r1:free"
 
-    # Ollama
+    # Ollama (used when LLM_PROVIDER=ollama)
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
+
+    # Google
+    google_api_key: str = ""
+    google_model: str = "gemini-3.1-flash-lite-preview"
 
     # ── Telegram ─────────────────────────────────────────────────────
     telegram_bot_token: str = ""

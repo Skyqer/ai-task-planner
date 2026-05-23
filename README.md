@@ -10,7 +10,7 @@
 
 ### 🧠 AI-ядро (Natural Language Understanding)
 - **Понимание естественного языка** — пишите как удобно: *"Завтра сдать курсач по матану до 16:00"*, *"Надо купить молоко"* — бот сам извлечёт задачу, дедлайн, приоритет и категорию.
-- **Два LLM-провайдера на выбор**: OpenRouter (облако, десятки моделей) или Ollama (локально, полная приватность).
+- **Три LLM-провайдера на выбор**: Google AI Studio (Gemini — **рекомендуется**, так как работает в разы быстрее), OpenRouter (облако, десятки моделей) или Ollama (локально, полная приватность).
 - **Structured JSON output** — LLM возвращает строго типизированный ответ, который парсится через Pydantic-схемы.
 - **Контекстная память** — бот помнит предыдущие сообщения и автоматически сжимает историю, чтобы не перегружать контекстное окно.
 
@@ -212,7 +212,13 @@ TELEGRAM_BOT_TOKEN=123456789:ABCdef...      # @BotFather
 DATABASE_URL=postgresql+asyncpg://planner:planner_secret@127.0.0.1:55432/planner
 
 # === LLM (выберите один) ===
-LLM_PROVIDER=openrouter                      # или "ollama"
+LLM_PROVIDER=google                          # "google", "openrouter" или "ollama"
+
+# Google (Рекомендуется — работает быстрее всего)
+GOOGLE_API_KEY=AIzaSy...                     # https://aistudio.google.com/
+GOOGLE_MODEL=gemini-3.1-flash-lite-preview
+
+# OpenRouter
 OPENROUTER_API_KEY=sk-or-v1-...              # https://openrouter.ai/keys
 OPENROUTER_MODEL=deepseek/deepseek-r1:free   # или любая другая модель
 
@@ -293,7 +299,7 @@ uv run pytest tests/test_priority.py -v
 |-----------|-----------|
 | **Фреймворк** | FastAPI + Uvicorn |
 | **Telegram** | aiogram 3.x |
-| **LLM** | OpenAI SDK (OpenRouter / Ollama) |
+| **LLM** | OpenAI SDK (Google AI Studio / OpenRouter / Ollama) |
 | **Speech-to-Text** | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (OpenAI Whisper, CTranslate2) |
 | **База данных** | PostgreSQL 16 + SQLAlchemy 2.0 (async) |
 | **Миграции** | Alembic |

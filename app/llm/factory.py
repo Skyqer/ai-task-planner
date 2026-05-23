@@ -22,6 +22,11 @@ def get_llm_provider(settings: Settings) -> BaseLLMProvider:
 
         return OllamaProvider(settings)
 
+    if settings.llm_provider == "google":
+        from app.llm.google import GoogleProvider
+
+        return GoogleProvider(settings)
+
     raise ValueError(
         f"Unknown LLM provider: {settings.llm_provider!r}. "
         "Supported: 'openrouter', 'ollama'."
