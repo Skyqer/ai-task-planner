@@ -194,7 +194,7 @@
 ### 1. Клонирование и настройка
 
 ```bash
-git clone https://github.com/<your-username>/ai-task-planner.git
+git clone https://github.com/Skyqer/ai-task-planner.git
 cd ai-task-planner
 
 # Установка зависимостей
