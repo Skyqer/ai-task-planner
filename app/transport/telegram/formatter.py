@@ -163,7 +163,10 @@ def get_main_keyboard() -> ReplyKeyboardMarkup:
     builder.button(text="📋 Мои задачи")
     builder.button(text="🌅 Мой день")
     builder.button(text="📅 Расписание")
-    builder.adjust(3)
+    builder.button(text="🔄 Регулярные")
+    builder.button(text="📊 Статистика")
+    builder.button(text="❓ Помощь")
+    builder.adjust(3, 3)
     return builder.as_markup(resize_keyboard=True, persistent=True)
 
 

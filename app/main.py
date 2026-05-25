@@ -76,18 +76,36 @@ async def lifespan(app: FastAPI):
     if settings.telegram_bot_token:
         from aiogram.types import Update
         from app.transport.telegram.bot import create_bot, create_dispatcher
-        from app.transport.telegram.handlers import (
-            router as tg_router, 
-            set_planner as set_tg_planner,
-            set_services as set_tg_services,
-        )
+        from app.transport.telegram.bot import create_bot, create_dispatcher
+        from app.transport.telegram.middlewares import DatabaseMiddleware, DependencyMiddleware
 
         bot = create_bot(settings)
         dp = create_dispatcher()
 
-        # Inject planner into the telegram handlers
-        set_tg_planner(planner)
-        set_tg_services(timeline=timeline, voice=voice, constraints=constraints)
+        # Inject dependencies via middleware
+        dp.update.middleware(DatabaseMiddleware())
+        dp.update.middleware(DependencyMiddleware({
+            "planner": planner,
+            "timeline": timeline,
+            "voice": voice,
+            "constraint_service": constraints,
+        }))
+
+        # Register bot commands in the Telegram menu
+        from aiogram.types import BotCommand
+        await bot.set_my_commands([
+            BotCommand(command="start", description="Регистрация + приветствие"),
+            BotCommand(command="tasks", description="Список активных задач"),
+            BotCommand(command="done", description="Отметить задачу выполненной"),
+            BotCommand(command="cancel", description="Отменить задачу"),
+            BotCommand(command="delete", description="Удалить задачу"),
+            BotCommand(command="morning", description="Утренняя сводка (погода + план дня)"),
+            BotCommand(command="timeline", description="Расписание дня"),
+            BotCommand(command="recurring", description="Управление регулярными задачами"),
+            BotCommand(command="stats", description="Статистика"),
+            BotCommand(command="help", description="Показать все команды"),
+        ])
+        logger.info("Bot commands registered with Telegram")
 
         # Set up notification callback for scheduler
         class TelegramNotifier:
@@ -108,15 +126,7 @@ async def lifespan(app: FastAPI):
         scheduler.start()
 
         if settings.bot_mode == "polling":
-            # Start polling in background
-            async def _run_polling():
-                try:
-                    await dp.start_polling(bot)
-                except asyncio.CancelledError:
-                    pass
-
-            bot_task = asyncio.create_task(_run_polling())
-            logger.info("Telegram bot started (polling)")
+            logger.info("Bot mode is 'polling'. Run 'python bot_polling.py' to start the bot locally. FastAPI won't start polling to avoid conflicts.")
 
         elif settings.bot_mode == "webhook":
             webhook_url = settings.webhook_url.rstrip("/") + "/telegram/webhook"

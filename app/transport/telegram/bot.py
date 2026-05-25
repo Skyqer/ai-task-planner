@@ -19,8 +19,9 @@ def create_bot(settings: Settings) -> Bot:
 
 def create_dispatcher() -> Dispatcher:
     """Create an aiogram Dispatcher and register handlers."""
+    from aiogram.fsm.storage.memory import MemoryStorage
     from app.transport.telegram.handlers import router
 
-    dp = Dispatcher()
+    dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
     return dp

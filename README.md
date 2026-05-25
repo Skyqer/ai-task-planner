@@ -121,7 +121,7 @@
 **Ключевые принципы:**
 - **LLM — только NLU.** Вся бизнес-логика (приоритеты, дедлайны, конфликты, зависимости) — детерминистическая.
 - **Разделение слоёв.** Transport ничего не знает о Storage. Core Services не знают о Telegram.
-- **Dependency Injection.** Все сервисы инжектятся через `lifespan` в `app/main.py`.
+- **Dependency Injection.** Использование `aiogram.BaseMiddleware` (`DependencyMiddleware`, `DatabaseMiddleware`) для безопасного проброса сервисов и сессий БД в хендлеры без использования глобальных переменных.
 
 ---
 
@@ -237,14 +237,16 @@ WHISPER_MODEL_SIZE=base                       # tiny, base, small, medium, large
 docker compose up -d postgres
 ```
 
-### 4. Запуск бота
+### 4. Запуск приложения
 
+Если вы используете Telegram Bot в режиме webhook вместе с FastAPI:
 ```bash
-# Режим разработки (hot-reload)
-uv run python main.py
-
-# Или напрямую
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Для локальной разработки (в режиме long-polling) запускайте бота отдельным скриптом:
+```bash
+uv run python bot_polling.py
 ```
 
 ### 5. Запуск через Docker (production)
@@ -268,11 +270,15 @@ docker compose up -d --build
 | `/timeline` | Расписание дня (блокировки + свободные окна) |
 | `/recurring` | Управление регулярными задачами |
 | `/stats` | Статистика (today / week / month / all_time) |
+| `/help` | Показать полный список команд |
 
-**Кнопки-быстрые действия:**
+**Кнопки-быстрые действия (Главное меню):**
 - 📋 **Мои задачи** → `/tasks`
 - 🌅 **Мой день** → `/morning`
 - 📅 **Расписание** → `/timeline`
+- 🔄 **Регулярные** → `/recurring`
+- 📊 **Статистика** → `/stats`
+- ❓ **Помощь** → `/help`
 
 ---
 

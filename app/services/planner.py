@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, date as date_type, time as time_type, timedelta, timezone
+from datetime import datetime, date as date_type, time as time_type, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,10 @@ from app.schemas.weather import WeatherData
 from app.services.memory import MemoryManager
 from app.services.priority import PriorityEngine
 from app.services.weather import WeatherService
+from app.services.constraints import ConstraintService
+from app.services.reminder import ReminderService
+from app.utils.time_parser import parse_time_safe
+from app.utils.timezone import now_local, get_local_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +45,31 @@ class CorePlanner:
         self._priority = priority
         self._constraints = constraints
         self._tz_name = timezone_name
-
-    def _now(self) -> datetime:
-        try:
-            from zoneinfo import ZoneInfo
-            return datetime.now(ZoneInfo(self._tz_name))
-        except Exception:
-            return datetime.now(timezone(timedelta(hours=2)))
+        self._reminder_service = ReminderService()
 
     async def process_message(self, session: AsyncSession,
-                              user_id: int, text: str) -> PlannerResponseSchema:
+                               user_id: int, text: str) -> PlannerResponseSchema:
+        """Main pipeline to process user input."""
+        # 1. Setup user
         await repo.get_or_create_user(session, user_id)
         await self._constraints.ensure_defaults(session, user_id)
-        
         await self._memory.add_message(session, user_id, "user", text)
 
+        # 2. Build Context
+        system_prompt, weather_data = await self._build_context(session, user_id, text)
+
+        # 3. Call LLM
+        response = await self._call_llm(system_prompt, text)
+
+        # 4. Post-process & Execute Actions
+        response = self._priority.process(response, weather=weather_data, original_text=text)
+        await self._execute_actions(session, user_id, response)
+
+        # 5. Finalize
+        await self._memory.add_message(session, user_id, "assistant", response.summary or "OK")
+        return response
+
+    async def _build_context(self, session: AsyncSession, user_id: int, text: str) -> tuple[str, WeatherData | None]:
         context = await self._memory.get_context(session, user_id)
         is_morning = any(kw in text.lower().strip() for kw in _MORNING_KEYWORDS)
 
@@ -63,7 +77,7 @@ class CorePlanner:
         if is_morning:
             weather_data = await self._weather.get_current_weather()
 
-        now = self._now()
+        now = now_local(self._tz_name)
         weather_text = weather_data.to_context_string() if weather_data else "Данные о погоде недоступны."
 
         user_constraints = await self._constraints.get_constraints(session, user_id)
@@ -79,18 +93,19 @@ class CorePlanner:
             existing_constraints=constraints_text,
             conversation_context=context.to_context_string(),
         )
+        return system, weather_data
 
+    async def _call_llm(self, system_prompt: str, user_message: str) -> PlannerResponseSchema:
         try:
-            response = await self._llm.generate_parsed(system_prompt=system, user_message=text)
+            return await self._llm.generate_parsed(system_prompt=system_prompt, user_message=user_message)
         except Exception as exc:
             logger.error("LLM call failed: %s", exc)
-            response = PlannerResponseSchema(
-                summary="Произошла техническая заминка при обращении к ИИ. Попробуйте ещё раз или переформулируйте запрос.",
+            return PlannerResponseSchema(
+                summary="Произошла техническая заминка при обращении к ИИ. Попробуйте ещё раз.",
                 warnings=["Сервис ИИ временно недоступен или вернул пустой ответ."],
             )
 
-        response = self._priority.process(response, weather=weather_data, original_text=text)
-
+    async def _execute_actions(self, session: AsyncSession, user_id: int, response: PlannerResponseSchema) -> None:
         # Process deleted constraints
         for label in response.deleted_constraints:
             try:
@@ -117,6 +132,7 @@ class CorePlanner:
                 logger.error("Failed to add constraint '%s': %s", c.label, exc)
                 response.warnings.append(f"Не удалось добавить правило '{c.label}'")
 
+        # Process tasks
         for task in response.tasks:
             try:
                 await self._save_task(session, user_id, task, self._tz_name)
@@ -124,19 +140,8 @@ class CorePlanner:
                 logger.error("Failed to save task '%s': %s", task.title, exc)
                 response.warnings.append(f"Не удалось сохранить: '{task.title}'")
 
-        await self._memory.add_message(session, user_id, "assistant", response.summary or "OK")
-        return response
-
-    @staticmethod
-    async def _save_task(session: AsyncSession, user_id: int, task, tz_name: str = "Europe/Kyiv") -> None:
-        from datetime import datetime, timezone, timedelta
-        try:
-            from zoneinfo import ZoneInfo
-            tz_info = ZoneInfo(tz_name)
-            offset = tz_info.utcoffset(datetime.now(tz_info))
-            tz = timezone(offset)
-        except Exception:
-            tz = timezone(timedelta(hours=2))
+    async def _save_task(self, session: AsyncSession, user_id: int, task, tz_name: str) -> None:
+        tz = get_local_timezone(tz_name)
 
         kwargs: dict = {
             "title": task.title,
@@ -148,63 +153,24 @@ class CorePlanner:
             "tags": task.tags or None,
             "status": TaskStatus.CREATED,
         }
+        
         if task.deadline and task.deadline.date:
             dl = task.deadline.date
             kwargs["deadline_date"] = date_type.fromisoformat(dl) if isinstance(dl, str) else dl
             if task.deadline.time:
-                # Handle potential ranges like "01:00-01:30" by taking the first part
-                time_str = task.deadline.time.split("-")[0].strip()
-                p = time_str.split(":")
-                try:
-                    kwargs["deadline_time"] = time_type(int(p[0]), int(p[1]), tzinfo=tz)
-                except (ValueError, IndexError):
-                    pass
+                parsed_time = parse_time_safe(task.deadline.time)
+                if parsed_time:
+                    kwargs["deadline_time"] = parsed_time.replace(tzinfo=tz)
             if task.deadline.kind:
                 kwargs["deadline_kind"] = DeadlineKind(task.deadline.kind.value)
+                
         if task.fixed_time and task.fixed_time.date:
             ft = task.fixed_time.date
             kwargs["fixed_time_date"] = date_type.fromisoformat(ft) if isinstance(ft, str) else ft
             if task.fixed_time.time:
-                # Handle potential ranges like "01:00-01:30"
-                time_str = task.fixed_time.time.split("-")[0].strip()
-                p = time_str.split(":")
-                try:
-                    kwargs["fixed_time_time"] = time_type(int(p[0]), int(p[1]), tzinfo=tz)
-                except (ValueError, IndexError):
-                    pass
+                parsed_time = parse_time_safe(task.fixed_time.time)
+                if parsed_time:
+                    kwargs["fixed_time_time"] = parsed_time.replace(tzinfo=tz)
+                    
         task_orm = await repo.create_task(session, user_id, **kwargs)
-        
-        # Auto-create reminder (2 hours before) if fixed_time or deadline is set
-        remind_time = None
-        if task_orm.fixed_time_date and task_orm.fixed_time_time:
-            dt = datetime.combine(task_orm.fixed_time_date, task_orm.fixed_time_time)
-            # Make timezone aware if needed, assuming local timezone for now
-            try:
-                from zoneinfo import ZoneInfo
-                # Use a default or passed timezone, hardcode Kyiv for now as in planner init
-                tz = ZoneInfo("Europe/Kyiv")
-                dt = dt.replace(tzinfo=tz)
-            except Exception:
-                pass
-            remind_time = dt - timedelta(hours=2)
-        elif task_orm.deadline_date and task_orm.deadline_time:
-            dt = datetime.combine(task_orm.deadline_date, task_orm.deadline_time)
-            try:
-                from zoneinfo import ZoneInfo
-                tz = ZoneInfo("Europe/Kyiv")
-                dt = dt.replace(tzinfo=tz)
-            except Exception:
-                pass
-            remind_time = dt - timedelta(hours=2)
-            
-        if remind_time:
-            # Only create reminder if it's in the future
-            now = datetime.now(remind_time.tzinfo)
-            if remind_time > now:
-                await repo.create_reminder(
-                    session,
-                    task_id=task_orm.id,
-                    user_id=user_id,
-                    remind_at=remind_time,
-                    task_title=task_orm.title,
-                )
+        await self._reminder_service.schedule_for_task(session, user_id, task_orm)

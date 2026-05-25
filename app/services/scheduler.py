@@ -93,12 +93,8 @@ class SchedulerService:
         if not self._notifier:
             return
 
-        try:
-            from zoneinfo import ZoneInfo
-            tz = ZoneInfo(self._settings.timezone)
-        except ImportError:
-            from datetime import timezone
-            tz = timezone(timedelta(hours=2))
+        from app.utils.timezone import get_local_timezone
+        tz = get_local_timezone(self._settings.timezone)
 
         now = datetime.now(tz)
         threshold = now + timedelta(hours=1)
@@ -131,12 +127,8 @@ class SchedulerService:
         if not self._notifier:
             return
 
-        try:
-            from zoneinfo import ZoneInfo
-            tz = ZoneInfo(self._settings.timezone)
-        except ImportError:
-            from datetime import timezone
-            tz = timezone(timedelta(hours=2))
+        from app.utils.timezone import get_local_timezone
+        tz = get_local_timezone(self._settings.timezone)
 
         now = datetime.now(tz)
 
@@ -176,12 +168,8 @@ class SchedulerService:
         """Check RecurrenceORM and create new task instances."""
         from app.models.task import RecurrenceORM, TaskORM, TaskStatus
 
-        try:
-            from zoneinfo import ZoneInfo
-            tz = ZoneInfo(self._settings.timezone)
-        except ImportError:
-            from datetime import timezone
-            tz = timezone(timedelta(hours=2))
+        from app.utils.timezone import get_local_timezone
+        tz = get_local_timezone(self._settings.timezone)
 
         now = datetime.now(tz)
 
