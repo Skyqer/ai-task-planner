@@ -1,89 +1,89 @@
 # 🤖 AI Task Planner — Telegram Bot
 
-> Персональный AI-планировщик задач в Telegram с голосовым вводом, интеллектуальным расписанием и прогнозом погоды.
+> Personal AI task planner in Telegram with voice input, intelligent scheduling, and weather forecast.
 
-Отправьте боту текстовое или голосовое сообщение — он разберёт задачи, расставит приоритеты, составит расписание на день и вовремя напомнит о дедлайнах. Вся бизнес-логика (приоритеты, дедлайны, зависимости) работает детерминистически — LLM используется только для понимания естественного языка.
-
----
-
-## ✨ Возможности
-
-### 🧠 AI-ядро (Natural Language Understanding)
-- **Понимание естественного языка** — пишите как удобно: *"Завтра сдать курсач по матану до 16:00"*, *"Надо купить молоко"* — бот сам извлечёт задачу, дедлайн, приоритет и категорию.
-- **Три LLM-провайдера на выбор**: Google AI Studio (Gemini — **рекомендуется**, так как работает в разы быстрее), OpenRouter (облако, десятки моделей) или Ollama (локально, полная приватность).
-- **Structured JSON output** — LLM возвращает строго типизированный ответ, который парсится через Pydantic-схемы.
-- **Контекстная память** — бот помнит предыдущие сообщения и автоматически сжимает историю, чтобы не перегружать контекстное окно.
-
-### 🎙 Голосовой ввод (Whisper STT)
-- **Распознавание голоса** через [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (SYSTRAN/faster-whisper) — оптимизированная CTranslate2-реализация модели OpenAI Whisper.
-- Автоматическое определение языка (русский, украинский, английский).
-- При низкой уверенности распознавания бот просит подтверждение перед обработкой.
-- Конвертация аудио из OGG в WAV через **ffmpeg**.
-
-### 📋 Управление задачами
-- **CRUD** — создание, просмотр, завершение, отмена, удаление задач.
-- **Inline-кнопки** — ✅ Выполнить / 🗑 Удалить прямо под списком задач.
-- **Категории задач**: `study`, `home`, `health`, `errand`, `sport`, `work`, `other`.
-- **Приоритеты 1–5** с цветовой индикацией (⚪🟢🟡🟠🔴).
-- **Дедлайны** (hard / soft) и **фиксированное время** для жёстких событий.
-- **Мягкое удаление** — задачи не стираются из БД, а помечаются как удалённые.
-
-### 🔄 Повторяющиеся задачи
-- Паттерны: `daily`, `weekly:mon,wed,fri`, `monthly:15`.
-- Автоматическое создание экземпляров по расписанию (APScheduler).
-- Управление через `/recurring` с inline-кнопками.
-
-### 📅 Интеллектуальное расписание (Timeline Engine)
-- **Жёсткие блокировки** (constraints) — сон, школа/работа, фокус и другие. Бот знает, когда вы недоступны, и не ставит задачи на заблокированное время.
-- **Управление блокировками голосом** — скажите *"Я больше не хожу в школу"* или *"Я сплю с 12 до 9"*, и бот обновит расписание.
-- **Свободные окна** — автоматический расчёт доступного времени с визуализацией в команде `/timeline`.
-- **Энергетический профиль** — учёт биологических ритмов (жаворонок/сова). Важные задачи ставятся на часы пиковой активности.
-- **Greedy-алгоритм размещения** — задачи расставляются по свободным окнам с учётом приоритета, длительности и энергии.
-
-### ⚡ Умный движок приоритетов
-- **Детерминистические правила** (без LLM):
-  - Фиксированное время сегодня → минимум приоритет 4
-  - Дедлайн в ближайшие 2 часа → приоритет 5
-  - Дедлайн сегодня → 4–5
-  - Ключевые слова «срочно», «обязательно» → повышение приоритета
-- **Обнаружение конфликтов** — если две задачи пересекаются по времени, бот предупредит.
-- **Авто-определение просроченных** — задачи с истекшим дедлайном помечаются как overdue.
-
-### 🔗 Зависимости задач
-- Создание цепочек: *"Задача B зависит от задачи A"*.
-- **Защита от циклов** — DFS-обход графа предотвращает невозможные петли.
-- **Блокировка завершения** — нельзя отметить задачу как выполненную, пока не завершены её зависимости.
-
-### 🌦 Интеграция с погодой
-- **OpenWeatherMap API** — актуальный прогноз с кэшированием (30 мин TTL).
-- **Утренняя сводка** — температура, осадки, ветер при запросе плана дня.
-- **Погодочувствительные задачи** — если задача помечена как `weather_sensitive` (пробежка, прогулка), а прогноз обещает дождь, бот предупредит и предложит перенести.
-
-### 📊 Статистика и аналитика
-- Команда `/stats` — полная сводка:
-  - ✅ Выполнено / ❌ Отменено / ⏳ Просрочено
-  - 🔥 Серия (дней подряд с выполненными задачами)
-  - ⏱ Среднее время на задачу
-  - 🗂 Разбивка по категориям
-- Фильтрация: `today`, `week`, `month`, `all_time`.
-
-### ⏰ Напоминания и автоматизация
-- Автоматическое создание напоминаний за 2 часа до дедлайна/фиксированного времени.
-- Inline-кнопка **"✅ Понял"** для подтверждения.
-- Фоновые джобы (APScheduler):
-  - Проверка приближающихся дедлайнов (каждые 15 мин)
-  - Отправка pending-напоминаний (каждую минуту)
-  - Создание экземпляров регулярных задач (каждый час)
-  - Предложения по переносу задач (каждые 30 мин)
-  - Очистка старых сообщений (ежедневно)
-
-### 🔀 Авто-перенос задач
-- `ReschedulerService` анализирует расписание и предлагает перенести задачи, если окно стало недоступно.
-- Предложение приходит в Telegram с кнопками **"✅ Согласен"** / **"❌ Оставить как есть"**.
+Send the bot a text or voice message — it will extract tasks, set priorities, build a daily schedule, and remind you of deadlines on time. All business logic (priorities, deadlines, dependencies) works deterministically — the LLM is used only for natural language understanding.
 
 ---
 
-## 🏗 Архитектура
+## ✨ Features
+
+### 🧠 AI Core (Natural Language Understanding)
+- **Natural language understanding** — write however you like: *"Submit math assignment tomorrow by 16:00"*, *"Need to buy milk"* — the bot will extract the task, deadline, priority, and category itself.
+- **Three LLM providers to choose from**: Google AI Studio (Gemini — **recommended**, as it works significantly faster), OpenRouter (cloud, dozens of models), or Ollama (local, full privacy).
+- **Structured JSON output** — LLM returns a strictly typed response parsed via Pydantic schemas.
+- **Contextual memory** — the bot remembers previous messages and automatically compresses history to avoid overloading the context window.
+
+### 🎙 Voice Input (Whisper STT)
+- **Voice recognition** via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (SYSTRAN/faster-whisper) — an optimized CTranslate2 implementation of the OpenAI Whisper model.
+- Automatic language detection (Russian, Ukrainian, English).
+- If recognition confidence is low, the bot asks for confirmation before processing.
+- Audio conversion from OGG to WAV via **ffmpeg**.
+
+### 📋 Task Management
+- **CRUD** — create, view, complete, cancel, delete tasks.
+- **Inline buttons** — ✅ Complete / 🗑 Delete right under the task list.
+- **Task categories**: `study`, `home`, `health`, `errand`, `sport`, `work`, `other`.
+- **Priorities 1–5** with color indication (⚪🟢🟡🟠🔴).
+- **Deadlines** (hard / soft) and **fixed time** for strict events.
+- **Soft delete** — tasks are not erased from the DB but marked as deleted.
+
+### 🔄 Recurring Tasks
+- Patterns: `daily`, `weekly:mon,wed,fri`, `monthly:15`.
+- Automatic creation of instances on schedule (APScheduler).
+- Management via `/recurring` with inline buttons.
+
+### 📅 Intelligent Scheduling (Timeline Engine)
+- **Hard constraints** — sleep, school/work, focus, etc. The bot knows when you are unavailable and doesn't schedule tasks during blocked time.
+- **Voice management of constraints** — say *"I no longer go to school"* or *"I sleep from 12 to 9"*, and the bot will update the schedule.
+- **Free windows** — automatic calculation of available time visualized with the `/timeline` command.
+- **Energy profile** — accounting for biological rhythms (early bird / night owl). Important tasks are placed during peak activity hours.
+- **Greedy placement algorithm** — tasks are placed in free windows considering priority, duration, and energy.
+
+### ⚡ Smart Priority Engine
+- **Deterministic rules** (without LLM):
+  - Fixed time today → minimum priority 4
+  - Deadline in the next 2 hours → priority 5
+  - Deadline today → 4–5
+  - Keywords like "urgent", "must" → priority boost
+- **Conflict detection** — if two tasks overlap in time, the bot will warn you.
+- **Auto-detection of overdue tasks** — tasks with expired deadlines are marked as overdue.
+
+### 🔗 Task Dependencies
+- Creating chains: *"Task B depends on Task A"*.
+- **Cycle protection** — DFS graph traversal prevents impossible loops.
+- **Completion blocking** — a task cannot be marked as completed until its dependencies are finished.
+
+### 🌦 Weather Integration
+- **OpenWeatherMap API** — up-to-date forecast with caching (30 min TTL).
+- **Morning brief** — temperature, precipitation, wind upon requesting the daily plan.
+- **Weather-sensitive tasks** — if a task is marked as `weather_sensitive` (running, walking) and the forecast predicts rain, the bot will warn and suggest rescheduling.
+
+### 📊 Statistics and Analytics
+- Command `/stats` — complete summary:
+  - ✅ Completed / ❌ Cancelled / ⏳ Overdue
+  - 🔥 Streak (consecutive days with completed tasks)
+  - ⏱ Average time per task
+  - 🗂 Breakdown by categories
+- Filtering: `today`, `week`, `month`, `all_time`.
+
+### ⏰ Reminders and Automation
+- Automatic reminder creation 2 hours before a deadline / fixed time.
+- Inline button **"✅ Got it"** for acknowledgment.
+- Background jobs (APScheduler):
+  - Checking upcoming deadlines (every 15 min)
+  - Sending pending reminders (every minute)
+  - Creating recurring task instances (every hour)
+  - Task rescheduling suggestions (every 30 min)
+  - Old messages cleanup (daily)
+
+### 🔀 Auto-Rescheduling
+- `ReschedulerService` analyzes the schedule and suggests rescheduling tasks if a window becomes unavailable.
+- The suggestion is sent to Telegram with buttons **"✅ Agree"** / **"❌ Leave as is"**.
+
+---
+
+## 🏗 Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -118,138 +118,141 @@
               └─────────────────┘
 ```
 
-**Ключевые принципы:**
-- **LLM — только NLU.** Вся бизнес-логика (приоритеты, дедлайны, конфликты, зависимости) — детерминистическая.
-- **Разделение слоёв.** Transport ничего не знает о Storage. Core Services не знают о Telegram.
-- **Dependency Injection.** Использование `aiogram.BaseMiddleware` (`DependencyMiddleware`, `DatabaseMiddleware`) для безопасного проброса сервисов и сессий БД в хендлеры без использования глобальных переменных.
+**Key Principles:**
+- **LLM is strictly for NLU.** All business logic (priorities, deadlines, conflicts, dependencies) is deterministic.
+- **Layer Separation.** Transport knows nothing about Storage. Core Services know nothing about Telegram.
+- **Dependency Injection.** Uses `aiogram.BaseMiddleware` (`DependencyMiddleware`, `DatabaseMiddleware`) for safely injecting services and DB sessions into handlers without global variables.
 
 ---
 
-## 📂 Структура проекта
+## 📂 Project Structure
 
 ```
 .
-├── main.py                          # Точка входа (uvicorn runner)
+├── main.py                          # Entry point (uvicorn runner)
+├── bot_polling.py                   # Dedicated local bot polling script
 ├── app/
 │   ├── main.py                      # FastAPI app + lifespan (DI)
-│   ├── config.py                    # pydantic-settings конфигурация
+│   ├── config.py                    # pydantic-settings config
 │   ├── db/
 │   │   ├── engine.py                # SQLAlchemy async engine
-│   │   └── repository.py           # Все CRUD-операции с БД
+│   │   └── repository.py           # All DB CRUD operations
 │   ├── llm/
-│   │   ├── base.py                  # Абстрактный BaseLLMProvider
+│   │   ├── base.py                  # Abstract BaseLLMProvider
 │   │   ├── openrouter.py            # OpenRouter (OpenAI-compatible API)
-│   │   ├── ollama.py                # Ollama (локальный LLM)
-│   │   ├── factory.py               # Фабрика провайдеров
-│   │   └── prompts.py               # Системный промпт для LLM
+│   │   ├── ollama.py                # Ollama (local LLM)
+│   │   ├── factory.py               # Provider factory
+│   │   └── prompts.py               # System prompt for LLM
 │   ├── models/
 │   │   ├── task.py                  # TaskORM, RecurrenceORM
-│   │   ├── user.py                  # UserORM (с energy_profile)
+│   │   ├── user.py                  # UserORM (with energy_profile)
 │   │   ├── message.py              # MessageORM, MemorySummaryORM
 │   │   ├── constraint.py           # UserConstraintORM
 │   │   ├── dependency.py           # TaskDependencyORM
 │   │   ├── reminder.py             # ReminderORM
 │   │   └── routine.py              # TaskCompletionLogORM
-│   ├── schemas/                     # Pydantic-модели (валидация I/O)
+│   ├── schemas/                     # Pydantic models (I/O validation)
 │   ├── services/
-│   │   ├── planner.py              # CorePlanner — главный оркестратор
-│   │   ├── priority.py             # PriorityEngine (детерминистический)
-│   │   ├── timeline.py             # TimelineEngine (расписание дня)
-│   │   ├── constraints.py          # Управление блокировками
-│   │   ├── dependencies.py         # Зависимости задач + cycle detection
-│   │   ├── energy.py               # Биоритмы / energy profile
-│   │   ├── weather.py              # OpenWeatherMap интеграция
+│   │   ├── planner.py              # CorePlanner — main orchestrator
+│   │   ├── priority.py             # PriorityEngine (deterministic)
+│   │   ├── timeline.py             # TimelineEngine (daily schedule)
+│   │   ├── constraints.py          # Constraints management
+│   │   ├── dependencies.py         # Task dependencies + cycle detection
+│   │   ├── energy.py               # Biorhythms / energy profile
+│   │   ├── weather.py              # OpenWeatherMap integration
 │   │   ├── voice.py                # Whisper STT
-│   │   ├── memory.py               # Контекстная память (3-tier)
-│   │   ├── scheduler.py            # APScheduler (фоновые джобы)
-│   │   ├── statistics.py           # Аналитика и метрики
-│   │   ├── rescheduler.py          # Авто-перенос задач
-│   │   └── routine.py              # Обучение привычкам
+│   │   ├── memory.py               # Context memory (3-tier)
+│   │   ├── scheduler.py            # APScheduler (background jobs)
+│   │   ├── statistics.py           # Analytics and metrics
+│   │   ├── rescheduler.py          # Auto-rescheduling tasks
+│   │   └── routine.py              # Routine learning
 │   └── transport/
-│       ├── api/routes.py            # REST-эндпоинты
+│       ├── api/routes.py            # REST endpoints
 │       └── telegram/
-│           ├── bot.py               # Создание Bot + Dispatcher
-│           ├── handlers.py          # Все хендлеры команд и сообщений
-│           ├── formatter.py         # Форматирование для Telegram
-│           └── callbacks.py         # Callback-данные для inline-кнопок
-├── tests/                           # 40 unit-тестов (pytest + pytest-asyncio)
-├── alembic/                         # Миграции базы данных
-├── Dockerfile                       # Production-образ
+│           ├── bot.py               # Bot + Dispatcher creation
+│           ├── middlewares.py       # Aiogram DI middlewares
+│           ├── states.py            # FSM states
+│           ├── handlers.py          # All command and message handlers
+│           ├── formatter.py         # Telegram formatting
+│           └── callbacks.py         # Callback data for inline buttons
+├── tests/                           # 40 unit tests (pytest + pytest-asyncio)
+├── alembic/                         # Database migrations
+├── Dockerfile                       # Production image
 ├── docker-compose.yml               # App + PostgreSQL
-├── pyproject.toml                   # Зависимости (uv)
-└── .env.example                     # Пример конфигурации
+├── pyproject.toml                   # Dependencies (uv)
+└── .env.example                     # Example configuration
 ```
 
 ---
 
-## 🚀 Быстрый старт
+## 🚀 Quick Start
 
-### Требования
+### Requirements
 
 - Python **3.14+**
 - PostgreSQL **16+**
-- [uv](https://docs.astral.sh/uv/) — менеджер пакетов
-- [ffmpeg](https://ffmpeg.org/) — для голосовых сообщений
+- [uv](https://docs.astral.sh/uv/) — package manager
+- [ffmpeg](https://ffmpeg.org/) — for voice messages
 
-### 1. Клонирование и настройка
+### 1. Clone and Setup
 
 ```bash
 git clone https://github.com/Skyqer/ai-task-planner.git
 cd ai-task-planner
 
-# Установка зависимостей
+# Install dependencies
 uv sync
 
-# Создание .env
+# Create .env
 cp .env.example .env
 ```
 
-### 2. Конфигурация `.env`
+### 2. Configure `.env`
 
 ```env
-# === Обязательные ===
+# === Required ===
 TELEGRAM_BOT_TOKEN=123456789:ABCdef...      # @BotFather
 DATABASE_URL=postgresql+asyncpg://planner:planner_secret@127.0.0.1:55432/planner
 
-# === LLM (выберите один) ===
-LLM_PROVIDER=google                          # "google", "openrouter" или "ollama"
+# === LLM (choose one) ===
+LLM_PROVIDER=google                          # "google", "openrouter" or "ollama"
 
-# Google (Рекомендуется — работает быстрее всего)
+# Google (Recommended — works the fastest)
 GOOGLE_API_KEY=AIzaSy...                     # https://aistudio.google.com/
 GOOGLE_MODEL=gemini-3.1-flash-lite-preview
 
 # OpenRouter
 OPENROUTER_API_KEY=sk-or-v1-...              # https://openrouter.ai/keys
-OPENROUTER_MODEL=deepseek/deepseek-r1:free   # или любая другая модель
+OPENROUTER_MODEL=deepseek/deepseek-r1:free   # or any other model
 
-# === Погода (опционально) ===
+# === Weather (optional) ===
 OPENWEATHER_API_KEY=your_key                 # https://openweathermap.org/api
 WEATHER_CITY=Kyiv
 WEATHER_COUNTRY=UA
 
-# === Голос ===
+# === Voice ===
 WHISPER_MODEL_SIZE=base                       # tiny, base, small, medium, large
 ```
 
-### 3. Запуск базы данных
+### 3. Start Database
 
 ```bash
 docker compose up -d postgres
 ```
 
-### 4. Запуск приложения
+### 4. Start Application
 
-Если вы используете Telegram Bot в режиме webhook вместе с FastAPI:
+If you use the Telegram Bot in webhook mode alongside FastAPI:
 ```bash
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Для локальной разработки (в режиме long-polling) запускайте бота отдельным скриптом:
+For local development (in long-polling mode), run the bot using the standalone script:
 ```bash
 uv run python bot_polling.py
 ```
 
-### 5. Запуск через Docker (production)
+### 5. Start via Docker (production)
 
 ```bash
 docker compose up -d --build
@@ -257,70 +260,70 @@ docker compose up -d --build
 
 ---
 
-## 🤖 Команды бота
+## 🤖 Bot Commands
 
-| Команда | Описание |
+| Command | Description |
 |---------|----------|
-| `/start` | Регистрация + приветствие |
-| `/tasks` | Список активных задач с inline-кнопками |
-| `/done <номер>` | Отметить задачу как выполненную |
-| `/cancel <номер>` | Отменить задачу |
-| `/delete <номер>` | Удалить задачу |
-| `/morning` | Утренняя сводка (погода + план дня) |
-| `/timeline` | Расписание дня (блокировки + свободные окна) |
-| `/recurring` | Управление регулярными задачами |
-| `/stats` | Статистика (today / week / month / all_time) |
-| `/help` | Показать полный список команд |
+| `/start` | Registration + welcome |
+| `/tasks` | Active tasks list with inline buttons |
+| `/done <number>` | Mark task as completed |
+| `/cancel <number>` | Cancel task |
+| `/delete <number>` | Delete task |
+| `/morning` | Morning brief (weather + day plan) |
+| `/timeline` | Day schedule (constraints + free windows) |
+| `/recurring` | Manage recurring tasks |
+| `/stats` | Statistics (today / week / month / all_time) |
+| `/help` | Show full list of commands |
 
-**Кнопки-быстрые действия (Главное меню):**
-- 📋 **Мои задачи** → `/tasks`
-- 🌅 **Мой день** → `/morning`
-- 📅 **Расписание** → `/timeline`
-- 🔄 **Регулярные** → `/recurring`
-- 📊 **Статистика** → `/stats`
-- ❓ **Помощь** → `/help`
+**Quick Action Buttons (Main Menu):**
+- 📋 **My tasks** → `/tasks`
+- 🌅 **My day** → `/morning`
+- 📅 **Schedule** → `/timeline`
+- 🔄 **Recurring** → `/recurring`
+- 📊 **Statistics** → `/stats`
+- ❓ **Help** → `/help`
 
 ---
 
-## 🧪 Тестирование
+## 🧪 Testing
 
 ```bash
-# Все тесты
+# All tests
 uv run pytest
 
-# С подробным выводом
+# With detailed output
 uv run pytest -v
 
-# Конкретный модуль
+# Specific module
 uv run pytest tests/test_priority.py -v
 ```
 
-**Покрытие**: 40 тестов — constraints, dependencies, energy, LLM-парсинг, memory, priority, recurring, rescheduler, routine, schemas, statistics, weather.
+**Coverage**: 40 tests — constraints, dependencies, energy, LLM-parsing, memory, priority, recurring, rescheduler, routine, schemas, statistics, weather.
 
 ---
 
-## 🛠 Технологический стек
+## 🛠 Tech Stack
 
-| Компонент | Технология |
+| Component | Technology |
 |-----------|-----------|
-| **Фреймворк** | FastAPI + Uvicorn |
+| **Framework** | FastAPI + Uvicorn |
 | **Telegram** | aiogram 3.x |
 | **LLM** | OpenAI SDK (Google AI Studio / OpenRouter / Ollama) |
 | **Speech-to-Text** | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (OpenAI Whisper, CTranslate2) |
-| **База данных** | PostgreSQL 16 + SQLAlchemy 2.0 (async) |
-| **Миграции** | Alembic |
-| **Планировщик** | APScheduler (AsyncIOScheduler) |
-| **Погода** | OpenWeatherMap API |
-| **HTTP-клиент** | httpx |
-| **Валидация** | Pydantic v2 |
-| **Конфигурация** | pydantic-settings + .env |
-| **Пакетный менеджер** | uv |
-| **Линтер** | Ruff |
-| **Тесты** | pytest + pytest-asyncio |
-| **Контейнеризация** | Docker + Docker Compose |
+| **Database** | PostgreSQL 16 + SQLAlchemy 2.0 (async) |
+| **Migrations** | Alembic |
+| **Scheduler** | APScheduler (AsyncIOScheduler) |
+| **Weather** | OpenWeatherMap API |
+| **HTTP client** | httpx |
+| **Validation** | Pydantic v2 |
+| **Configuration** | pydantic-settings + .env |
+| **Package Manager** | uv |
+| **Linter** | Ruff |
+| **Tests** | pytest + pytest-asyncio |
+| **Containerization** | Docker + Docker Compose |
 
 ---
 
-## 📝 Лицензия
+## 📝 License
 
 MIT

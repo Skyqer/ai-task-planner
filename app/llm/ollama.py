@@ -57,10 +57,10 @@ class OllamaProvider(BaseLLMProvider):
                 {
                     "role": "system",
                     "content": (
-                        "Ты — помощник для сжатия контекста. "
-                        "Прочитай историю переписки и верни краткую сводку (2-4 предложения) "
-                        "с ключевыми фактами: задачи, предпочтения, контекст. "
-                        "Пиши на русском. Без воды."
+                        "You are a context compression assistant. "
+                        "Read the conversation history and return a brief summary (2-4 sentences) "
+                        "with key facts: tasks, preferences, context. "
+                        "Write in English. No fluff."
                     ),
                 },
                 {"role": "user", "content": messages_text},

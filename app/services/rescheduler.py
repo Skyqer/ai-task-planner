@@ -113,7 +113,7 @@ class ReschedulerService:
                         task_title=task.title,
                         original_deadline=orig_dt,
                         suggested_time=suggested_time,
-                        reason=f"Свободное окно {fw['window'].start}-{fw['window'].end}",
+                        reason=f"Free window {fw['window'].start}-{fw['window'].end}",
                     )
                 )
                 window_idx += 1

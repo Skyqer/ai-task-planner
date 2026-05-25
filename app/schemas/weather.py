@@ -21,9 +21,9 @@ class WeatherData:
         """Format weather for LLM context injection."""
         rain_str = f"{self.rain_probability * 100:.0f}%"
         return (
-            f"Погода: {self.description}, "
-            f"температура {self.temperature:.0f}°C (ощущается {self.feels_like:.0f}°C), "
-            f"влажность {self.humidity}%, "
-            f"ветер {self.wind_speed:.1f} м/с, "
-            f"вероятность дождя {rain_str}."
+            f"Weather: {self.description}, "
+            f"temperature {self.temperature:.0f}°C (feels like {self.feels_like:.0f}°C), "
+            f"humidity {self.humidity}%, "
+            f"wind speed {self.wind_speed:.1f} m/s, "
+            f"rain probability {rain_str}."
         )

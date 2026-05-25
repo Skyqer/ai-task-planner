@@ -24,8 +24,8 @@ from app.utils.timezone import now_local, get_local_timezone
 logger = logging.getLogger(__name__)
 
 _MORNING_KEYWORDS = {
-    "проснулся", "проснулась", "доброе утро", "утро",
-    "план на день", "план дня", "что сегодня", "сводка",
+    "woke up", "good morning", "morning",
+    "day plan", "plan for the day", "what's today", "brief",
     "morning", "brief",
 }
 
@@ -78,12 +78,12 @@ class CorePlanner:
             weather_data = await self._weather.get_current_weather()
 
         now = now_local(self._tz_name)
-        weather_text = weather_data.to_context_string() if weather_data else "Данные о погоде недоступны."
+        weather_text = weather_data.to_context_string() if weather_data else "Weather data unavailable."
 
         user_constraints = await self._constraints.get_constraints(session, user_id)
         constraints_text = "\n".join(
             f"- {c.label} ({c.start_time}-{c.end_time})" for c in user_constraints
-        ) if user_constraints else "Нет блокировок в расписании."
+        ) if user_constraints else "No constraints in the schedule."
 
         system = SYSTEM_PROMPT.format(
             current_datetime=now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -101,8 +101,8 @@ class CorePlanner:
         except Exception as exc:
             logger.error("LLM call failed: %s", exc)
             return PlannerResponseSchema(
-                summary="Произошла техническая заминка при обращении к ИИ. Попробуйте ещё раз.",
-                warnings=["Сервис ИИ временно недоступен или вернул пустой ответ."],
+                summary="A technical error occurred while communicating with the AI. Please try again.",
+                warnings=["AI service is temporarily unavailable or returned an empty response."],
             )
 
     async def _execute_actions(self, session: AsyncSession, user_id: int, response: PlannerResponseSchema) -> None:
@@ -111,7 +111,7 @@ class CorePlanner:
             try:
                 removed = await self._constraints.remove_constraint_by_label(session, user_id, label)
                 if not removed:
-                    response.warnings.append(f"Не удалось найти правило в расписании для удаления: '{label}'")
+                    response.warnings.append(f"Failed to find a constraint in the schedule to delete: '{label}'")
             except Exception as exc:
                 logger.error("Failed to remove constraint '%s': %s", label, exc)
 
@@ -130,7 +130,7 @@ class CorePlanner:
                 )
             except Exception as exc:
                 logger.error("Failed to add constraint '%s': %s", c.label, exc)
-                response.warnings.append(f"Не удалось добавить правило '{c.label}'")
+                response.warnings.append(f"Failed to add constraint '{c.label}'")
 
         # Process tasks
         for task in response.tasks:
@@ -138,7 +138,7 @@ class CorePlanner:
                 await self._save_task(session, user_id, task, self._tz_name)
             except Exception as exc:
                 logger.error("Failed to save task '%s': %s", task.title, exc)
-                response.warnings.append(f"Не удалось сохранить: '{task.title}'")
+                response.warnings.append(f"Failed to save: '{task.title}'")
 
     async def _save_task(self, session: AsyncSession, user_id: int, task, tz_name: str) -> None:
         tz = get_local_timezone(tz_name)

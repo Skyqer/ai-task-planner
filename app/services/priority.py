@@ -12,7 +12,7 @@ from app.schemas.weather import WeatherData
 logger = logging.getLogger(__name__)
 
 # Keywords that boost priority
-_URGENCY_KEYWORDS = {"надо", "обязательно", "срочно", "важно", "критично", "asap"}
+_URGENCY_KEYWORDS = {"must", "mandatory", "urgent", "important", "critical", "asap"}
 
 
 class PriorityEngine:
@@ -75,7 +75,7 @@ class PriorityEngine:
         if deadline_date < today:
             # Overdue
             task.priority = 5
-            warn_msg = f"⚠️ Задача '{task.title}' просрочена!"
+            warn_msg = f"⚠️ Task '{task.title}' is overdue!"
             if warn_msg not in response.warnings:
                 response.warnings.append(warn_msg)
             return
@@ -107,7 +107,7 @@ class PriorityEngine:
                         and remaining.total_seconds() / 60 < task.estimated_minutes
                     ):
                         task.priority = 5
-                        warn_msg = f"⚠️ На задачу '{task.title}' может не хватить времени до дедлайна."
+                        warn_msg = f"⚠️ На задачу '{task.title}' может не хватить времени until дедлайна."
                         if warn_msg not in response.warnings:
                             response.warnings.append(warn_msg)
                 except (ValueError, IndexError):
@@ -138,9 +138,9 @@ class PriorityEngine:
 
         if weather.is_rainy:
             warning = (
-                f"⚠️ Задача '{task.title}' чувствительна к погоде. "
-                f"Ожидается дождь ({weather.rain_probability * 100:.0f}%). "
-                "Рекомендуется перенести или подготовиться."
+                f"⚠️ Task '{task.title}' is weather sensitive. "
+                f"Rain expected ({weather.rain_probability * 100:.0f}%). "
+                "Recommended to reschedule or prepare."
             )
             if warning not in response.warnings:
                 response.warnings.append(warning)
@@ -172,6 +172,6 @@ class PriorityEngine:
             for name_b, start_b, end_b in fixed_tasks[i + 1:]:
                 if start_a < end_b and start_b < end_a:
                     conflicts.append(
-                        f"⚠️ Конфликт: '{name_a}' и '{name_b}' пересекаются по времени."
+                        f"⚠️ Conflict: '{name_a}' and '{name_b}' overlap in time."
                     )
         return conflicts

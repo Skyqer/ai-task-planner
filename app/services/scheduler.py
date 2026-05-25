@@ -113,8 +113,8 @@ class SchedulerService:
                 if timedelta(0) < remaining <= timedelta(hours=1):
                     mins = int(remaining.total_seconds() / 60)
                     msg = (
-                        f"⏰ Напоминание: '{task.title}' — "
-                        f"дедлайн через {mins} мин "
+                        f"⏰ Reminder: '{task.title}' — "
+                        f"дедлайн через {mins} min "
                         f"({task.deadline_time.strftime('%H:%M')})"
                     )
                     try:
@@ -142,7 +142,7 @@ class SchedulerService:
                     if (now - reminder.last_sent_at) < timedelta(minutes=30):
                         continue
 
-                msg = f"🔔 Напоминание:\n<b>{reminder.task_title}</b>"
+                msg = f"🔔 Reminder:\n<b>{reminder.task_title}</b>"
                 
                 try:
                     from app.transport.telegram.formatter import get_reminder_keyboard
@@ -299,10 +299,10 @@ class SchedulerService:
                 suggestions = await self._rescheduler.check_and_suggest(session, user.id)
                 for sugg in suggestions:
                     msg = (
-                        f"⏳ <b>Просрочено:</b> {sugg.task_title}\n"
-                        f"💡 Рекомендую перенести на <b>{sugg.suggested_time.strftime('%H:%M')} "
+                        f"⏳ <b>Overdue:</b> {sugg.task_title}\n"
+                        f"💡 Recommend rescheduling to <b>{sugg.suggested_time.strftime('%H:%M')} "
                         f"({sugg.suggested_time.date()})</b>\n"
-                        f"<i>Причина: {sugg.reason}</i>"
+                        f"<i>Reason: {sugg.reason}</i>"
                     )
                     
                     try:

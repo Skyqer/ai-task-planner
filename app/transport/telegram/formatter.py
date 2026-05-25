@@ -47,14 +47,14 @@ def format_planner_response(response: PlannerResponseSchema) -> str:
 
             details = []
             if task.estimated_minutes:
-                details.append(f"~{task.estimated_minutes} мин")
+                details.append(f"~{task.estimated_minutes} min")
             if task.deadline and task.deadline.time:
                 kind = "⏰" if task.deadline.kind and task.deadline.kind.value == "hard" else "🕐"
-                details.append(f"{kind} до {task.deadline.time}")
+                details.append(f"{kind} until {task.deadline.time}")
             if task.deadline and task.deadline.date:
                 details.append(f"📅 {task.deadline.date}")
             if task.fixed_time and task.fixed_time.time:
-                details.append(f"📌 в {task.fixed_time.time}")
+                details.append(f"📌 at {task.fixed_time.time}")
             if task.type:
                 details.append(f"[{task.type.value}]")
 
@@ -66,7 +66,7 @@ def format_planner_response(response: PlannerResponseSchema) -> str:
 
     # Schedule suggestions
     if response.schedule_suggestions:
-        sug_lines = ["📋 <b>Рекомендации:</b>"]
+        sug_lines = ["📋 <b>Recommendations:</b>"]
         for s in response.schedule_suggestions:
             time_range = ""
             if s.start and s.end:
@@ -81,16 +81,16 @@ def format_planner_response(response: PlannerResponseSchema) -> str:
 
     # Clarification questions
     if response.clarification_questions:
-        q_lines = ["❓ <b>Уточни:</b>"]
+        q_lines = ["❓ <b>Clarify:</b>"]
         for i, q in enumerate(response.clarification_questions, 1):
             q_lines.append(f"  {i}. {q}")
         parts.append("\n".join(q_lines))
 
-    text = "\n\n".join(parts) if parts else "✅ Обработано."
+    text = "\n\n".join(parts) if parts else "✅ Processed."
 
     # Truncate if exceeds Telegram limit
     if len(text) > _TELEGRAM_MAX_LENGTH:
-        text = text[: _TELEGRAM_MAX_LENGTH - 20] + "\n\n... (обрезано)"
+        text = text[: _TELEGRAM_MAX_LENGTH - 20] + "\n\n... (truncated)"
 
     return text
 
@@ -98,16 +98,16 @@ def format_planner_response(response: PlannerResponseSchema) -> str:
 def format_task_list(tasks) -> str:
     """Format a list of TaskORM objects for the /tasks command."""
     if not tasks:
-        return "📋 Нет активных задач."
+        return "📋 No active tasks."
 
-    lines = ["✨ <b>Ваши активные задачи</b>\n"]
+    lines = ["✨ <b>Your active tasks</b>\n"]
     for i, task in enumerate(tasks, 1):
         emoji = _PRIORITY_EMOJI.get(task.priority, "⚪")
         line = f"{emoji} <b>{i}. {task.title}</b>"
 
         details = []
         if task.estimated_minutes:
-            details.append(f"~{task.estimated_minutes} мин")
+            details.append(f"~{task.estimated_minutes} min")
         if task.deadline_date:
             details.append(f"📅 {task.deadline_date}")
         if task.deadline_time:
@@ -126,20 +126,20 @@ def format_task_list(tasks) -> str:
 
 def format_timeline(timeline: DayTimelineSchema) -> str:
     """Format a day timeline for Telegram."""
-    parts: list[str] = [f"📅 <b>Расписание на {timeline.date}</b>\n"]
+    parts: list[str] = [f"📅 <b>Schedule for {timeline.date}</b>\n"]
 
     if timeline.blocks:
         for block in timeline.blocks:
             emoji = _BLOCK_TYPE_EMOJI.get(block.block_type, "📦")
             parts.append(f"  {emoji} {block.start} – {block.end}  <b>{block.label}</b>")
     else:
-        parts.append("  Нет запланированных блоков.")
+        parts.append("  No scheduled blocks.")
 
     if timeline.free_windows:
-        parts.append("\n✨ <b>Свободные окна:</b>")
+        parts.append("\n✨ <b>Free windows:</b>")
         for fw in timeline.free_windows:
             duration = fw.duration_minutes
-            parts.append(f"  🟢 {fw.start} – {fw.end} ({duration} мин)")
+            parts.append(f"  🟢 {fw.start} – {fw.end} ({duration} min)")
 
     if timeline.warnings:
         parts.append("")
@@ -147,25 +147,25 @@ def format_timeline(timeline: DayTimelineSchema) -> str:
             parts.append(w)
 
     if timeline.suggestions:
-        parts.append("\n💡 <b>Рекомендации:</b>")
+        parts.append("\n💡 <b>Recommendations:</b>")
         for s in timeline.suggestions:
             parts.append(f"  • {s}")
 
     text = "\n".join(parts)
     if len(text) > _TELEGRAM_MAX_LENGTH:
-        text = text[: _TELEGRAM_MAX_LENGTH - 20] + "\n\n... (обрезано)"
+        text = text[: _TELEGRAM_MAX_LENGTH - 20] + "\n\n... (truncated)"
     return text
 
 
 def get_main_keyboard() -> ReplyKeyboardMarkup:
     """Get the persistent main menu keyboard."""
     builder = ReplyKeyboardBuilder()
-    builder.button(text="📋 Мои задачи")
-    builder.button(text="🌅 Мой день")
-    builder.button(text="📅 Расписание")
-    builder.button(text="🔄 Регулярные")
-    builder.button(text="📊 Статистика")
-    builder.button(text="❓ Помощь")
+    builder.button(text="📋 My tasks")
+    builder.button(text="🌅 My day")
+    builder.button(text="📅 Schedule")
+    builder.button(text="🔄 Recurring")
+    builder.button(text="📊 Statistics")
+    builder.button(text="❓ Help")
     builder.adjust(3, 3)
     return builder.as_markup(resize_keyboard=True, persistent=True)
 
@@ -195,7 +195,7 @@ def get_reminder_keyboard(reminder_id: str) -> InlineKeyboardMarkup:
     """Get an inline keyboard for a reminder acknowledgement."""
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="✅ Понял",
+        text="✅ Got it",
         callback_data=ReminderAckCallback(reminder_id=reminder_id).pack(),
     )
     return builder.as_markup()
@@ -204,18 +204,18 @@ def get_reminder_keyboard(reminder_id: str) -> InlineKeyboardMarkup:
 def format_recurrence_list(recurrences) -> str:
     """Format a list of RecurrenceORM objects for the /recurring command."""
     if not recurrences:
-        return "🔄 Нет активных повторяющихся задач."
+        return "🔄 No active recurring tasks."
 
-    lines = ["🔄 <b>Ваши регулярные задачи</b>\n"]
+    lines = ["🔄 <b>Your recurring tasks</b>\n"]
     for i, rec in enumerate(recurrences, 1):
         task = rec.task
         emoji = _PRIORITY_EMOJI.get(task.priority, "⚪")
         line = f"{emoji} <b>{i}. {task.title}</b>"
 
         details = []
-        details.append(f"повтор: {rec.pattern}")
+        details.append(f"repeats: {rec.pattern}")
         if rec.next_run:
-            details.append(f"следующий запуск: {rec.next_run.strftime('%Y-%m-%d %H:%M')}")
+            details.append(f"next run: {rec.next_run.strftime('%Y-%m-%d %H:%M')}")
         
         if details:
             line += f"\n   └ <i>{' · '.join(details)}</i>\n"
@@ -233,7 +233,7 @@ def get_recurrences_keyboard(recurrences) -> InlineKeyboardMarkup | None:
     builder = InlineKeyboardBuilder()
     for i, rec in enumerate(recurrences, 1):
         builder.button(
-            text=f"❌ Отменить {i}",
+            text=f"❌ Cancel {i}",
             callback_data=RecurrenceActionCallback(action="cancel", recur_id=str(rec.id)).pack(),
         )
 
@@ -246,7 +246,7 @@ def get_reschedule_keyboard(task_id: str, new_time_iso: str) -> InlineKeyboardMa
     from app.transport.telegram.callbacks import RescheduleActionCallback
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="✅ Согласен",
+        text="✅ Agree",
         callback_data=RescheduleActionCallback(
             action="accept", 
             task_id=task_id, 
@@ -254,7 +254,7 @@ def get_reschedule_keyboard(task_id: str, new_time_iso: str) -> InlineKeyboardMa
         ).pack(),
     )
     builder.button(
-        text="❌ Оставить как есть",
+        text="❌ Leave as is",
         callback_data=RescheduleActionCallback(
             action="dismiss", 
             task_id=task_id, 
@@ -267,28 +267,28 @@ def get_reschedule_keyboard(task_id: str, new_time_iso: str) -> InlineKeyboardMa
 def format_stats(stats) -> str:
     """Format user statistics for Telegram."""
     period_names = {
-        "today": "Сегодня",
-        "week": "Неделя",
-        "month": "Месяц",
-        "all_time": "За всё время",
+        "today": "Today",
+        "week": "Week",
+        "month": "Month",
+        "all_time": "All time",
     }
     period_name = period_names.get(stats.period, stats.period)
 
     lines = [
-        f"📊 <b>Ваша статистика ({period_name})</b>",
+        f"📊 <b>Your statistics ({period_name})</b>",
         "",
-        f"✅ <b>Выполнено:</b> {stats.total_completed}",
-        f"❌ <b>Отменено:</b> {stats.total_cancelled}",
-        f"⏳ <b>Просрочено:</b> {stats.total_overdue}",
-        f"🔥 <b>Серия (дней):</b> {stats.current_streak_days}",
+        f"✅ <b>Completed:</b> {stats.total_completed}",
+        f"❌ <b>Cancelled:</b> {stats.total_cancelled}",
+        f"⏳ <b>Overdue:</b> {stats.total_overdue}",
+        f"🔥 <b>Day streak:</b> {stats.current_streak_days}",
     ]
     
     if stats.total_completed > 0:
-        lines.append(f"⏱ <b>Среднее время на задачу:</b> {stats.avg_duration_minutes} мин")
+        lines.append(f"⏱ <b>Average time per task:</b> {stats.avg_duration_minutes} min")
         
         if stats.by_category:
             lines.append("")
-            lines.append("🗂 <b>По категориям:</b>")
+            lines.append("🗂 <b>By categories:</b>")
             for cat, count in sorted(stats.by_category.items(), key=lambda x: x[1], reverse=True):
                 # map internal category names to human readable if needed
                 from app.transport.telegram.formatter import _PRIORITY_EMOJI # reuse if needed, or just map

@@ -32,16 +32,16 @@ class ConversationContext:
         parts: list[str] = []
 
         if self.summary:
-            parts.append(f"Краткая сводка: {self.summary}")
+            parts.append(f"Brief summary: {self.summary}")
 
         if self.recent_messages:
             msgs = []
             for msg in self.recent_messages[-5:]:  # last 5 for prompt
-                role = "Пользователь" if msg["role"] == "user" else "Ассистент"
+                role = "User" if msg["role"] == "user" else "Assistant"
                 msgs.append(f"{role}: {msg['content'][:200]}")
-            parts.append("Последние сообщения:\n" + "\n".join(msgs))
+            parts.append("Recent messages:\n" + "\n".join(msgs))
 
-        return "\n\n".join(parts) if parts else "Нет предыдущего контекста."
+        return "\n\n".join(parts) if parts else "No previous context."
 
 
 class MemoryManager:
@@ -98,19 +98,19 @@ class MemoryManager:
             for t in tasks:
                 line = f"- [{t.priority}] {t.title}"
                 if t.deadline_date:
-                    line += f" (дедлайн: {t.deadline_date}"
+                    line += f" (deadline: {t.deadline_date}"
                     if t.deadline_time:
                         line += f" {t.deadline_time}"
                     line += ")"
                 if t.fixed_time_date:
-                    line += f" [фикс: {t.fixed_time_date}"
+                    line += f" [fixed: {t.fixed_time_date}"
                     if t.fixed_time_time:
                         line += f" {t.fixed_time_time}"
                     line += "]"
                 task_lines.append(line)
             tasks_text = "\n".join(task_lines)
         else:
-            tasks_text = "Нет активных задач."
+            tasks_text = "No active tasks."
 
         return ConversationContext(
             summary=summary_text,

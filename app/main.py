@@ -94,16 +94,16 @@ async def lifespan(app: FastAPI):
         # Register bot commands in the Telegram menu
         from aiogram.types import BotCommand
         await bot.set_my_commands([
-            BotCommand(command="start", description="Регистрация + приветствие"),
-            BotCommand(command="tasks", description="Список активных задач"),
-            BotCommand(command="done", description="Отметить задачу выполненной"),
-            BotCommand(command="cancel", description="Отменить задачу"),
-            BotCommand(command="delete", description="Удалить задачу"),
-            BotCommand(command="morning", description="Утренняя сводка (погода + план дня)"),
-            BotCommand(command="timeline", description="Расписание дня"),
-            BotCommand(command="recurring", description="Управление регулярными задачами"),
-            BotCommand(command="stats", description="Статистика"),
-            BotCommand(command="help", description="Показать все команды"),
+            BotCommand(command="start", description="Registration + welcome"),
+            BotCommand(command="tasks", description="Active tasks list"),
+            BotCommand(command="done", description="Mark task as completed"),
+            BotCommand(command="cancel", description="Cancel task"),
+            BotCommand(command="delete", description="Delete task"),
+            BotCommand(command="morning", description="Morning brief (weather + day plan)"),
+            BotCommand(command="timeline", description="Day schedule"),
+            BotCommand(command="recurring", description="Manage recurring tasks"),
+            BotCommand(command="stats", description="Statistics"),
+            BotCommand(command="help", description="Show all commands"),
         ])
         logger.info("Bot commands registered with Telegram")
 

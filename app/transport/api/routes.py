@@ -48,7 +48,7 @@ async def process_message(
     """Send a text message to the planner and get structured response."""
     if not _planner:
         return PlannerResponseSchema(
-            summary="Планировщик не инициализирован.",
+            summary="Planner is not initialized.",
             warnings=["Service not ready"],
         )
     return await _planner.process_message(session, body.user_id, body.text)

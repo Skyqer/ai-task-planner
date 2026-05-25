@@ -19,13 +19,13 @@ _DEFAULT_CONSTRAINTS = [
         "constraint_type": ConstraintType.SLEEP,
         "start_time": "23:00",
         "end_time": "07:00",
-        "label": "Сон",
+        "label": "Sleep",
     },
     {
         "constraint_type": ConstraintType.SCHOOL,
         "start_time": "08:00",
         "end_time": "14:00",
-        "label": "Школа",
+        "label": "School",
         "days_of_week": [0, 1, 2, 3, 4],  # Mon-Fri
     },
 ]

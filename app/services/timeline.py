@@ -77,7 +77,7 @@ class TimelineEngine:
                     )
                     if is_blocked:
                         warnings.append(
-                            f"⚠️ '{task.title}' запланирована на {start_str}, "
+                            f"⚠️ '{task.title}' is scheduled for {start_str}, "
                             f"но это время заблокировано."
                         )
 
@@ -118,7 +118,7 @@ class TimelineEngine:
                 s2, e2 = _parse_time(fb2.start), _parse_time(fb2.end)
                 if s1 < e2 and s2 < e1:
                     warnings.append(
-                        f"⚠️ Конфликт: '{fb1.label}' и '{fb2.label}' "
+                        f"⚠️ Conflict: '{fb1.label}' and '{fb2.label}' "
                         f"пересекаются ({fb1.start}–{fb1.end} vs {fb2.start}–{fb2.end})."
                     )
 
@@ -153,7 +153,7 @@ class TimelineEngine:
                             placed_blocks.append(TimeBlock(
                                 start=_format_time(start_m),
                                 end=_format_time(end_m),
-                                label=task.title + " (Привычка)",
+                                label=task.title + " (Routine)",
                                 block_type="task",
                                 task_id=str(task.id),
                             ))
@@ -214,11 +214,11 @@ class TimelineEngine:
 
         if unplaced:
             warnings.append(
-                f"⚠️ Не хватает времени для: {', '.join(unplaced)}. "
+                f"⚠️ Not enough time for: {', '.join(unplaced)}. "
                 f"Рассмотрите перенос на другой день."
             )
             for name in unplaced:
-                suggestions.append(f"Перенесите '{name}' на завтра или сократите длительность.")
+                suggestions.append(f"Reschedule '{name}' to tomorrow or reduce duration.")
                 
         # Weather check
         if self._weather_service:
@@ -233,10 +233,10 @@ class TimelineEngine:
                     # check if w_task is in placed_blocks or fixed_blocks
                     if any(b.task_id == str(w_task.id) for b in fixed_blocks + placed_blocks):
                         warnings.append(
-                            f"☔ Внимание: ожидается дождь, а задача '{w_task.title}' "
+                            f"☔ Warning: rain is expected, and task '{w_task.title}' "
                             f"чувствительна к погоде. Возможно, стоит её перенести."
                         )
-                        suggestions.append(f"Перенесите '{w_task.title}' из-за дождя.")
+                        suggestions.append(f"Reschedule '{w_task.title}' due to rain.")
 
         # 9. Combine all blocks and sort
         all_blocks = constraint_blocks + fixed_blocks + placed_blocks
