@@ -24,8 +24,15 @@ from app.transport.api.routes import api_router, set_planner
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    format="%(asctime)s  %(levelname)-5s  %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
 )
+# Silence noisy third-party loggers
+logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)
+logging.getLogger("apscheduler.scheduler").setLevel(logging.WARNING)
+logging.getLogger("aiogram.event").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("watchfiles").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -76,13 +83,13 @@ async def lifespan(app: FastAPI):
     if settings.telegram_bot_token:
         from aiogram.types import Update
         from app.transport.telegram.bot import create_bot, create_dispatcher
-        from app.transport.telegram.bot import create_bot, create_dispatcher
-        from app.transport.telegram.middlewares import DatabaseMiddleware, DependencyMiddleware
+        from app.transport.telegram.middlewares import DatabaseMiddleware, DependencyMiddleware, LoggingMiddleware
 
         bot = create_bot(settings)
         dp = create_dispatcher()
 
-        # Inject dependencies via middleware
+        # Inject dependencies via middleware (order matters: logging → db → deps)
+        dp.update.middleware(LoggingMiddleware())
         dp.update.middleware(DatabaseMiddleware())
         dp.update.middleware(DependencyMiddleware({
             "planner": planner,
@@ -99,6 +106,7 @@ async def lifespan(app: FastAPI):
             BotCommand(command="done", description="Mark task as completed"),
             BotCommand(command="cancel", description="Cancel task"),
             BotCommand(command="delete", description="Delete task"),
+            BotCommand(command="describe", description="Add description to task"),
             BotCommand(command="morning", description="Morning brief (weather + day plan)"),
             BotCommand(command="timeline", description="Day schedule"),
             BotCommand(command="recurring", description="Manage recurring tasks"),

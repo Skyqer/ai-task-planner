@@ -118,7 +118,10 @@ def format_task_list(tasks) -> str:
             details.append(f"[{task.status.value}]")
 
         if details:
-            line += f"\n   └ <i>{' · '.join(details)}</i>\n"
+            line += f"\n   └ <i>{' · '.join(details)}</i>"
+        if task.details:
+            line += f"\n   📝 <i>{task.details}</i>"
+        line += "\n"
         lines.append(line)
 
     return "\n".join(lines)

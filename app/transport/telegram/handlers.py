@@ -185,6 +185,36 @@ async def cmd_stats(message: types.Message, session: AsyncSession) -> None:
     await message.answer(text, reply_markup=get_main_keyboard())
 
 
+@router.message(Command("describe"))
+async def cmd_describe(message: types.Message, session: AsyncSession) -> None:
+    """Add or update a description for a task. Usage: /describe <number> <text>"""
+    if not message.from_user:
+        return
+
+    args = (message.text or "").split(maxsplit=2)
+    if len(args) < 3 or not args[1].strip().isdigit():
+        await message.answer("Usage: /describe [task number] [description text]\n\nExample: /describe 1 Review the pull request and fix edge cases")
+        return
+
+    idx = int(args[1].strip()) - 1
+    description = args[2].strip()
+
+    # Validate max 250 words
+    word_count = len(description.split())
+    if word_count > 250:
+        await message.answer(f"⚠️ Description too long ({word_count} words). Maximum is 250 words.")
+        return
+
+    tasks = await repo.get_active_tasks(session, message.from_user.id)
+    if idx < 0 or idx >= len(tasks):
+        await message.answer(f"No task with number {idx + 1}.")
+        return
+
+    task = tasks[idx]
+    await repo.update_task(session, task.id, details=description)
+    await message.answer(f"📝 Description updated for: <b>{task.title}</b>\n\n<i>{description}</i>")
+
+
 @router.message(Command("help"))
 async def cmd_help(message: types.Message) -> None:
     """Show list of all available commands."""
@@ -192,9 +222,10 @@ async def cmd_help(message: types.Message) -> None:
         "📖 <b>Available commands</b>\n\n"
         "/start — Registration + welcome\n"
         "/tasks — Active tasks list with inline buttons\n"
-        "/done &lt;номер&gt; — Mark task as completed\n"
-        "/cancel &lt;номер&gt; — Cancel task\n"
-        "/delete &lt;номер&gt; — Delete task\n"
+        "/done &lt;number&gt; — Mark task as completed\n"
+        "/cancel &lt;number&gt; — Cancel task\n"
+        "/delete &lt;number&gt; — Delete task\n"
+        "/describe &lt;number&gt; &lt;text&gt; — Add description to a task (max 250 words)\n"
         "/morning — Morning brief (weather + day plan)\n"
         "/timeline — Day schedule (constraints + free windows)\n"
         "/recurring — Manage recurring tasks\n"

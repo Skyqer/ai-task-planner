@@ -1,8 +1,8 @@
 # 🤖 AI Task Planner — Telegram Bot
 
-> Personal AI task planner in Telegram with voice input, intelligent scheduling, and weather forecast.
+> Personal AI task planner in Telegram with voice input, intelligent scheduling, automatic descriptions, and weather forecast.
 
-Send the bot a text or voice message — it will extract tasks, set priorities, build a daily schedule, and remind you of deadlines on time. All business logic (priorities, deadlines, dependencies) works deterministically — the LLM is used only for natural language understanding.
+Send the bot a text or voice message — it will extract tasks, generate descriptions, set priorities, build a daily schedule, and remind you of deadlines on time. All business logic (priorities, deadlines, dependencies) works deterministically — the LLM is used only for natural language understanding.
 
 ---
 
@@ -10,18 +10,21 @@ Send the bot a text or voice message — it will extract tasks, set priorities, 
 
 ### 🧠 AI Core (Natural Language Understanding)
 - **Natural language understanding** — write however you like: *"Submit math assignment tomorrow by 16:00"*, *"Need to buy milk"* — the bot will extract the task, deadline, priority, and category itself.
-- **Three LLM providers to choose from**: Google AI Studio (Gemini — **recommended**, as it works significantly faster), OpenRouter (cloud, dozens of models), or Ollama (local, full privacy).
-- **Structured JSON output** — LLM returns a strictly typed response parsed via Pydantic schemas.
+- **Auto-generated task descriptions** — if you don't provide a description, the AI will generate a concise 1–2 sentence description based on context. If you describe the task, that description is used as-is.
+- **Three LLM providers to choose from**: Google AI Studio (Gemini — **recommended**, fastest), OpenRouter (cloud, dozens of models), or Ollama (local, full privacy).
+- **Structured JSON output** — LLM returns a strictly typed response parsed via Pydantic schemas. Robust parsing handles `<thought>` blocks and markdown fences that some models emit.
 - **Contextual memory** — the bot remembers previous messages and automatically compresses history to avoid overloading the context window.
 
 ### 🎙 Voice Input (Whisper STT)
-- **Voice recognition** via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (SYSTRAN/faster-whisper) — an optimized CTranslate2 implementation of the OpenAI Whisper model.
+- **Voice recognition** via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — an optimized CTranslate2 implementation of the OpenAI Whisper model.
 - Automatic language detection (Russian, Ukrainian, English).
 - If recognition confidence is low, the bot asks for confirmation before processing.
 - Audio conversion from OGG to WAV via **ffmpeg**.
 
 ### 📋 Task Management
 - **CRUD** — create, view, complete, cancel, delete tasks.
+- **Task descriptions** — every task has a description (max 250 words). The AI auto-generates one if you don't provide it.
+- **Edit descriptions** — use `/describe <number> <text>` to add or update a task's description at any time.
 - **Inline buttons** — ✅ Complete / 🗑 Delete right under the task list.
 - **Task categories**: `study`, `home`, `health`, `errand`, `sport`, `work`, `other`.
 - **Priorities 1–5** with color indication (⚪🟢🟡🟠🔴).
@@ -70,6 +73,8 @@ Send the bot a text or voice message — it will extract tasks, set priorities, 
 ### ⏰ Reminders and Automation
 - Automatic reminder creation 2 hours before a deadline / fixed time.
 - Inline button **"✅ Got it"** for acknowledgment.
+- **Smart reminder suppression** — reminders are automatically skipped and acknowledged if the task was already completed, cancelled, or deleted.
+- **Deduplication** — reminders are marked as sent in the DB *before* delivery, preventing duplicate Telegram messages even if multiple scheduler ticks overlap.
 - Background jobs (APScheduler):
   - Checking upcoming deadlines (every 15 min)
   - Sending pending reminders (every minute)
@@ -80,6 +85,11 @@ Send the bot a text or voice message — it will extract tasks, set priorities, 
 ### 🔀 Auto-Rescheduling
 - `ReschedulerService` analyzes the schedule and suggests rescheduling tasks if a window becomes unavailable.
 - The suggestion is sent to Telegram with buttons **"✅ Agree"** / **"❌ Leave as is"**.
+
+### 📝 Structured Logging
+- Clean, compact log format with timestamps and level labels.
+- **LoggingMiddleware** logs every incoming message/voice/button press with username, content preview, and end-to-end processing time in milliseconds.
+- Noisy third-party logs (APScheduler, aiogram.event, httpx, watchfiles) are silenced so only meaningful events appear.
 
 ---
 
@@ -92,11 +102,13 @@ Send the bot a text or voice message — it will extract tasks, set priorities, 
 │  │   Telegram Bot   │        │     REST API (FastAPI)  │  │
 │  │  (aiogram 3.x)   │        │  POST /api/plan         │  │
 │  └────────┬─────────┘        └──────────┬─────────────┘  │
-│           │                              │                │
+│           │  LoggingMiddleware            │                │
+│           │  DatabaseMiddleware           │                │
+│           │  DependencyMiddleware         │                │
 │           └──────────┬───────────────────┘                │
 │                      ▼                                    │
 │  ┌───────────────────────────────────────────────────┐   │
-│  │              Core Planner (Orchestrator)            │   │
+│  │              Core Planner (Orchestrator)           │   │
 │  │  LLM → Parse → PriorityEngine → Save → Respond    │   │
 │  └──────────────────────┬────────────────────────────┘   │
 │                          │                                │
@@ -121,7 +133,8 @@ Send the bot a text or voice message — it will extract tasks, set priorities, 
 **Key Principles:**
 - **LLM is strictly for NLU.** All business logic (priorities, deadlines, conflicts, dependencies) is deterministic.
 - **Layer Separation.** Transport knows nothing about Storage. Core Services know nothing about Telegram.
-- **Dependency Injection.** Uses `aiogram.BaseMiddleware` (`DependencyMiddleware`, `DatabaseMiddleware`) for safely injecting services and DB sessions into handlers without global variables.
+- **Dependency Injection.** Uses `aiogram.BaseMiddleware` (`LoggingMiddleware`, `DependencyMiddleware`, `DatabaseMiddleware`) for safely injecting services and DB sessions into handlers without global variables.
+- **Single process.** Running `uv run python main.py` starts FastAPI + Telegram polling + APScheduler all in one process. No need to run a separate `bot_polling.py`.
 
 ---
 
@@ -130,15 +143,16 @@ Send the bot a text or voice message — it will extract tasks, set priorities, 
 ```
 .
 ├── main.py                          # Entry point (uvicorn runner)
-├── bot_polling.py                   # Dedicated local bot polling script
+├── bot_polling.py                   # Standalone polling script (alternative)
 ├── app/
-│   ├── main.py                      # FastAPI app + lifespan (DI)
+│   ├── main.py                      # FastAPI app + lifespan (DI, middleware, scheduler)
 │   ├── config.py                    # pydantic-settings config
 │   ├── db/
 │   │   ├── engine.py                # SQLAlchemy async engine
 │   │   └── repository.py           # All DB CRUD operations
 │   ├── llm/
-│   │   ├── base.py                  # Abstract BaseLLMProvider
+│   │   ├── base.py                  # Abstract BaseLLMProvider + robust JSON parser
+│   │   ├── google.py                # Google AI Studio (Gemini)
 │   │   ├── openrouter.py            # OpenRouter (OpenAI-compatible API)
 │   │   ├── ollama.py                # Ollama (local LLM)
 │   │   ├── factory.py               # Provider factory
@@ -163,6 +177,7 @@ Send the bot a text or voice message — it will extract tasks, set priorities, 
 │   │   ├── voice.py                # Whisper STT
 │   │   ├── memory.py               # Context memory (3-tier)
 │   │   ├── scheduler.py            # APScheduler (background jobs)
+│   │   ├── reminder.py             # Reminder scheduling per task
 │   │   ├── statistics.py           # Analytics and metrics
 │   │   ├── rescheduler.py          # Auto-rescheduling tasks
 │   │   └── routine.py              # Routine learning
@@ -170,12 +185,12 @@ Send the bot a text or voice message — it will extract tasks, set priorities, 
 │       ├── api/routes.py            # REST endpoints
 │       └── telegram/
 │           ├── bot.py               # Bot + Dispatcher creation
-│           ├── middlewares.py       # Aiogram DI middlewares
+│           ├── middlewares.py       # LoggingMiddleware, DatabaseMiddleware, DependencyMiddleware
 │           ├── states.py            # FSM states
 │           ├── handlers.py          # All command and message handlers
 │           ├── formatter.py         # Telegram formatting
 │           └── callbacks.py         # Callback data for inline buttons
-├── tests/                           # 40 unit tests (pytest + pytest-asyncio)
+├── tests/                           # Unit tests (pytest + pytest-asyncio)
 ├── alembic/                         # Database migrations
 ├── Dockerfile                       # Production image
 ├── docker-compose.yml               # App + PostgreSQL
@@ -242,14 +257,9 @@ docker compose up -d postgres
 
 ### 4. Start Application
 
-If you use the Telegram Bot in webhook mode alongside FastAPI:
+Everything in one command — FastAPI + Telegram bot polling + background scheduler:
 ```bash
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-For local development (in long-polling mode), run the bot using the standalone script:
-```bash
-uv run python bot_polling.py
+uv run python main.py
 ```
 
 ### 5. Start via Docker (production)
@@ -265,10 +275,11 @@ docker compose up -d --build
 | Command | Description |
 |---------|----------|
 | `/start` | Registration + welcome |
-| `/tasks` | Active tasks list with inline buttons |
+| `/tasks` | Active tasks list with inline buttons and descriptions |
 | `/done <number>` | Mark task as completed |
 | `/cancel <number>` | Cancel task |
 | `/delete <number>` | Delete task |
+| `/describe <number> <text>` | Add or update a task description (max 250 words) |
 | `/morning` | Morning brief (weather + day plan) |
 | `/timeline` | Day schedule (constraints + free windows) |
 | `/recurring` | Manage recurring tasks |
@@ -298,7 +309,7 @@ uv run pytest -v
 uv run pytest tests/test_priority.py -v
 ```
 
-**Coverage**: 40 tests — constraints, dependencies, energy, LLM-parsing, memory, priority, recurring, rescheduler, routine, schemas, statistics, weather.
+**Coverage**: constraints, dependencies, energy, LLM-parsing, memory, priority, recurring, rescheduler, routine, schemas, statistics, weather.
 
 ---
 

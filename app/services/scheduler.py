@@ -129,6 +129,7 @@ class SchedulerService:
             return
 
         from datetime import timezone as tz_module
+        from app.models.task import TaskORM, TaskStatus
         now_utc = datetime.now(tz_module.utc)
 
         async with async_session_factory() as session:
@@ -136,6 +137,15 @@ class SchedulerService:
             reminders = await repo.get_pending_reminders(session, now_utc)
             
             for reminder in reminders:
+                # Check if the task is still active — skip if completed/cancelled/deleted
+                task = await session.get(TaskORM, reminder.task_id)
+                if not task or task.is_deleted or task.status in (
+                    TaskStatus.COMPLETED, TaskStatus.CANCELLED
+                ):
+                    # Auto-acknowledge stale reminders
+                    await repo.acknowledge_reminder(session, reminder.id)
+                    continue
+
                 # Skip if recently sent (retry every 30 mins for non-acknowledged)
                 if reminder.last_sent_at:
                     last_sent_utc = reminder.last_sent_at

@@ -76,7 +76,7 @@ Always return ONLY a JSON object with the strictly following structure:
   "tasks": [
     {{
       "title": "Task name",
-      "details": "Details",
+      "details": "Brief description of the task (1-2 sentences). Always fill this field — if the user provided a description, use it; otherwise generate a brief description based on context.",
       "type": "study|home|health|errand|sport|work|other",
       "priority": 3,
       "estimated_minutes": 30,
@@ -109,6 +109,7 @@ Rules for task_input:
 - If there is "today", "tomorrow", "day after tomorrow", calculate date.
 - If critical data for planning is missing, status = "needs_clarification" and ask 1–3 short questions.
 - If data is sufficient, status = "ok".
+- ALWAYS fill the "details" field for every task. If the user provided a description — use it as-is. If not — generate a brief 1-2 sentence description explaining what the task involves.
 
 Rules for morning_brief:
 - User woke up and wants a short daily plan.
