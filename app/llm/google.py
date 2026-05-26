@@ -42,7 +42,7 @@ class GoogleProvider(BaseLLMProvider):
             "model": self._model,
             "messages": messages,
             "temperature": 0.3,
-            "max_tokens": 1500,
+            "max_tokens": 2500,
         }
 
         # Structured output via json_object

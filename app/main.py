@@ -126,7 +126,8 @@ async def lifespan(app: FastAPI):
         scheduler.start()
 
         if settings.bot_mode == "polling":
-            logger.info("Bot mode is 'polling'. Run 'python bot_polling.py' to start the bot locally. FastAPI won't start polling to avoid conflicts.")
+            bot_task = asyncio.create_task(dp.start_polling(bot))
+            logger.info("Telegram bot polling started")
 
         elif settings.bot_mode == "webhook":
             webhook_url = settings.webhook_url.rstrip("/") + "/telegram/webhook"

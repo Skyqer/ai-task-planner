@@ -85,8 +85,9 @@ class SchedulerService:
 
     def shutdown(self) -> None:
         """Gracefully shut down the scheduler."""
-        self._scheduler.shutdown(wait=False)
-        logger.info("Scheduler stopped")
+        if self._scheduler.running:
+            self._scheduler.shutdown(wait=False)
+            logger.info("Scheduler stopped")
 
     async def _check_upcoming_deadlines(self) -> None:
         """Find tasks with deadlines within 1 hour and send reminders."""
@@ -127,29 +128,30 @@ class SchedulerService:
         if not self._notifier:
             return
 
-        from app.utils.timezone import get_local_timezone
-        tz = get_local_timezone(self._settings.timezone)
-
-        now = datetime.now(tz)
+        from datetime import timezone as tz_module
+        now_utc = datetime.now(tz_module.utc)
 
         async with async_session_factory() as session:
             # We fetch reminders due up to 'now'
-            reminders = await repo.get_pending_reminders(session, now)
+            reminders = await repo.get_pending_reminders(session, now_utc)
             
             for reminder in reminders:
-                # Calculate if we should send it (initial send or retry every 30 mins)
+                # Skip if recently sent (retry every 30 mins for non-acknowledged)
                 if reminder.last_sent_at:
-                    if (now - reminder.last_sent_at) < timedelta(minutes=30):
+                    last_sent_utc = reminder.last_sent_at
+                    if last_sent_utc.tzinfo is None:
+                        last_sent_utc = last_sent_utc.replace(tzinfo=tz_module.utc)
+                    if (now_utc - last_sent_utc) < timedelta(minutes=30):
                         continue
+
+                # Mark as SENT *before* sending to prevent duplicate sends
+                # from concurrent scheduler ticks
+                await repo.update_reminder_sent(session, reminder.id)
 
                 msg = f"🔔 Reminder:\n<b>{reminder.task_title}</b>"
                 
                 try:
                     from app.transport.telegram.formatter import get_reminder_keyboard
-                    
-                    # Hack: directly access bot in notifier if possible, or send without keyboard
-                    # But since notifier signature is just string, we might need a richer interface.
-                    # Let's adjust Notifier Protocol dynamically if supported.
                     
                     if hasattr(self._notifier, "send_with_keyboard"):
                         await self._notifier.send_with_keyboard(
@@ -159,8 +161,6 @@ class SchedulerService:
                         )
                     else:
                         await self._notifier.send(reminder.user_id, msg)
-                    
-                    await repo.update_reminder_sent(session, reminder.id)
                 except Exception as exc:
                     logger.error("Failed to send reminder %s: %s", reminder.id, exc)
 
