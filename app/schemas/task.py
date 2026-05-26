@@ -53,7 +53,7 @@ class TaskSchema(BaseModel):
     """Individual task as returned by the planner."""
 
     title: str
-    details: str = ""
+    details: Optional[str] = ""
     type: Annotated[TaskType, BeforeValidator(_ensure_task_type)] = TaskType.OTHER
     priority: int = Field(ge=1, le=5, default=2)
     estimated_minutes: int = Field(ge=0, default=30)

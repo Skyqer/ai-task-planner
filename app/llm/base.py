@@ -59,13 +59,58 @@ class BaseLLMProvider(ABC):
     @staticmethod
     def _parse_response(raw: str) -> PlannerResponseSchema:
         """Parse raw LLM output into PlannerResponseSchema."""
-        # Strip markdown code fences or conversational filler
+        import re
+
         text = raw.strip()
+
+        # Strip <thought>...</thought> or <think>...</think> blocks
+        text = re.sub(r"<(?:thought|think)>.*?</(?:thought|think)>", "", text, flags=re.DOTALL).strip()
+
+        # Strip markdown code fences
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```\s*$", "", text)
+        text = text.strip()
+
+        # Find the outermost JSON object using balanced braces
         if not text.startswith("{"):
             start_idx = text.find("{")
-            end_idx = text.rfind("}")
-            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                text = text[start_idx : end_idx + 1]
+            if start_idx == -1:
+                logger.error("No JSON object found in LLM response.\nRaw: %s", raw[:500])
+                return PlannerResponseSchema(
+                    status="ok",
+                    warnings=["The AI response was incomplete or incorrect."],
+                    summary="Failed to recognize the AI response. Please rephrase your query.",
+                )
+            text = text[start_idx:]
+
+        # Match balanced braces to find the complete JSON object
+        depth = 0
+        in_string = False
+        escape_next = False
+        end_pos = -1
+        for i, ch in enumerate(text):
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == "\\":
+                if in_string:
+                    escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end_pos = i
+                    break
+
+        if end_pos != -1:
+            text = text[: end_pos + 1]
 
         try:
             data = json.loads(text)
@@ -74,8 +119,8 @@ class BaseLLMProvider(ABC):
             logger.error("Failed to parse LLM response: %s\nRaw: %s", exc, raw[:500])
             return PlannerResponseSchema(
                 status="ok",
-                warnings=["Ответ нейросети оказался неполным или некорректным."],
-                summary="Не удалось распознать ответ нейросети. Попробуйте переформулировать ваш запрос.",
+                warnings=["The AI response was incomplete or incorrect."],
+                summary="Failed to recognize the AI response. Please rephrase your query.",
             )
 
     @abstractmethod

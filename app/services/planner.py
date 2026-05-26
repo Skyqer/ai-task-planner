@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, date as date_type, time as time_type, timezone
+from datetime import datetime, date as date_type, time as time_type, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -114,6 +114,7 @@ class CorePlanner:
                     response.warnings.append(f"Failed to find a constraint in the schedule to delete: '{label}'")
             except Exception as exc:
                 logger.error("Failed to remove constraint '%s': %s", label, exc)
+                await session.rollback()
 
         # Process added constraints
         for c in response.added_constraints:
@@ -131,6 +132,7 @@ class CorePlanner:
             except Exception as exc:
                 logger.error("Failed to add constraint '%s': %s", c.label, exc)
                 response.warnings.append(f"Failed to add constraint '{c.label}'")
+                await session.rollback()
 
         # Process tasks
         for task in response.tasks:
@@ -139,6 +141,24 @@ class CorePlanner:
             except Exception as exc:
                 logger.error("Failed to save task '%s': %s", task.title, exc)
                 response.warnings.append(f"Failed to save: '{task.title}'")
+                await session.rollback()
+
+    @staticmethod
+    def _to_fixed_offset_time(t: time_type, tz, ref_date: date_type | None = None) -> time_type:
+        """Convert a time with a named timezone (e.g. Europe/Kyiv) to a fixed UTC offset.
+        
+        PostgreSQL TIME WITH TIME ZONE only accepts fixed offsets, not named
+        timezones like zoneinfo.ZoneInfo.
+        """
+        if ref_date is None:
+            ref_date = date_type.today()
+        # Build a full datetime to resolve the correct UTC offset for this date
+        dt = datetime.combine(ref_date, t, tzinfo=tz)
+        utc_offset = dt.utcoffset()
+        if utc_offset is None:
+            return t
+        fixed_tz = timezone(utc_offset)
+        return t.replace(tzinfo=fixed_tz)
 
     async def _save_task(self, session: AsyncSession, user_id: int, task, tz_name: str) -> None:
         tz = get_local_timezone(tz_name)
@@ -156,21 +176,23 @@ class CorePlanner:
         
         if task.deadline and task.deadline.date:
             dl = task.deadline.date
-            kwargs["deadline_date"] = date_type.fromisoformat(dl) if isinstance(dl, str) else dl
+            dl_date = date_type.fromisoformat(dl) if isinstance(dl, str) else dl
+            kwargs["deadline_date"] = dl_date
             if task.deadline.time:
                 parsed_time = parse_time_safe(task.deadline.time)
                 if parsed_time:
-                    kwargs["deadline_time"] = parsed_time.replace(tzinfo=tz)
+                    kwargs["deadline_time"] = self._to_fixed_offset_time(parsed_time, tz, dl_date)
             if task.deadline.kind:
                 kwargs["deadline_kind"] = DeadlineKind(task.deadline.kind.value)
                 
         if task.fixed_time and task.fixed_time.date:
             ft = task.fixed_time.date
-            kwargs["fixed_time_date"] = date_type.fromisoformat(ft) if isinstance(ft, str) else ft
+            ft_date = date_type.fromisoformat(ft) if isinstance(ft, str) else ft
+            kwargs["fixed_time_date"] = ft_date
             if task.fixed_time.time:
                 parsed_time = parse_time_safe(task.fixed_time.time)
                 if parsed_time:
-                    kwargs["fixed_time_time"] = parsed_time.replace(tzinfo=tz)
+                    kwargs["fixed_time_time"] = self._to_fixed_offset_time(parsed_time, tz, ft_date)
                     
         task_orm = await repo.create_task(session, user_id, **kwargs)
         await self._reminder_service.schedule_for_task(session, user_id, task_orm)
