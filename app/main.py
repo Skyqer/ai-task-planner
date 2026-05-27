@@ -88,8 +88,9 @@ async def lifespan(app: FastAPI):
         bot = create_bot(settings)
         dp = create_dispatcher()
 
-        # Inject dependencies via middleware (order matters: logging → db → deps)
-        dp.update.middleware(LoggingMiddleware())
+        # Inject dependencies via middleware
+        dp.message.middleware(LoggingMiddleware())
+        dp.callback_query.middleware(LoggingMiddleware())
         dp.update.middleware(DatabaseMiddleware())
         dp.update.middleware(DependencyMiddleware({
             "planner": planner,
