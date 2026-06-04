@@ -66,7 +66,10 @@ async def lifespan(app: FastAPI):
     
     from app.services.rescheduler import ReschedulerService
     timeline = TimelineEngine(constraints, settings.timezone, weather)
-    voice = VoiceTranscriptionService()
+    voice = VoiceTranscriptionService(
+        model_size=settings.whisper_model_size,
+        unload_seconds=settings.whisper_unload_seconds,
+    )
     rescheduler = ReschedulerService(timeline, settings.timezone)
 
     # 4. Set planner for REST API

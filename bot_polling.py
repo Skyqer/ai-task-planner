@@ -54,7 +54,10 @@ async def main() -> None:
         timezone_name=settings.timezone,
     )
     timeline = TimelineEngine(constraints, settings.timezone, weather)
-    voice = VoiceTranscriptionService()
+    voice = VoiceTranscriptionService(
+        model_size=settings.whisper_model_size,
+        unload_seconds=settings.whisper_unload_seconds,
+    )
     rescheduler = ReschedulerService(timeline)
 
     # 4. Setup Bot and Dispatcher

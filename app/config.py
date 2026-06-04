@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # ── Database ──────────────────────────────────────────────────────
     database_url: str = (
-        "postgresql+asyncpg://planner:planner_secret@127.0.0.1:55432/planner"
+        ""
     )
 
     # ── LLM Provider ─────────────────────────────────────────────────
@@ -42,8 +42,8 @@ class Settings(BaseSettings):
 
     # ── Weather ──────────────────────────────────────────────────────
     openweather_api_key: str = ""
-    weather_city: str = "Uzhhorod"
-    weather_country: str = "UA"
+    weather_city: str = ""
+    weather_country: str = ""
 
     # ── General ──────────────────────────────────────────────────────
     timezone: str = "Europe/Kyiv"
@@ -58,6 +58,7 @@ class Settings(BaseSettings):
 
     # ── Voice ────────────────────────────────────────────────────────
     whisper_model_size: str = "base"
+    whisper_unload_seconds: int = 120  # 0 = keep model in memory forever
 
 
 settings = Settings()
