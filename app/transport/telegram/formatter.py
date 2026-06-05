@@ -294,8 +294,20 @@ def format_stats(stats) -> str:
             lines.append("🗂 <b>By categories:</b>")
             for cat, count in sorted(stats.by_category.items(), key=lambda x: x[1], reverse=True):
                 # map internal category names to human readable if needed
-                from app.transport.telegram.formatter import _PRIORITY_EMOJI # reuse if needed, or just map
                 cat_emoji = {"work": "💼", "study": "📚", "home": "🏠", "health": "💊", "sport": "🏋️", "errand": "🛒"}.get(cat, "📌")
                 lines.append(f"  {cat_emoji} {cat.capitalize()}: {count}")
 
+    return "\n".join(lines)
+
+
+def format_sys_stats(uptime_str: str, ram_mb: float, users: int, tasks: int, whisper_enabled: bool) -> str:
+    """Format system statistics for Telegram."""
+    lines = [
+        "🖥 <b>System Statistics</b>\n",
+        f"⏱ <b>Uptime:</b> {uptime_str}",
+        f"💾 <b>RAM:</b> {ram_mb:.0f} MB",
+        f"👥 <b>Users:</b> {users}",
+        f"📋 <b>Tasks:</b> {tasks}",
+        f"🎙 <b>Whisper:</b> {'enabled' if whisper_enabled else 'disabled'}",
+    ]
     return "\n".join(lines)

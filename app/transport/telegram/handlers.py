@@ -167,17 +167,44 @@ async def cmd_recurring(message: types.Message, session: AsyncSession) -> None:
 
 @router.message(Command("stats"))
 async def cmd_stats(message: types.Message, session: AsyncSession) -> None:
-    """Show user statistics."""
+    """Show user or system statistics. Usage: /stats or /stats sys"""
     if not message.from_user:
         return
 
+    args = (message.text or "").split()
+    
+    # System stats
+    if len(args) > 1 and args[1].lower() == "sys":
+        import time
+        import psutil
+        from sqlalchemy import select, func
+        from app.config import settings
+        from app.models.user import UserORM
+        from app.models.task import TaskORM
+        from app.transport.telegram.formatter import format_sys_stats
+        
+        proc = psutil.Process()
+        uptime_seconds = time.time() - proc.create_time()
+        hours, rem = divmod(uptime_seconds, 3600)
+        minutes, _ = divmod(rem, 60)
+        uptime_str = f"{int(hours)}h {int(minutes)}m"
+        
+        ram_mb = proc.memory_info().rss / (1024 * 1024)
+        
+        users_count = await session.scalar(select(func.count(UserORM.id))) or 0
+        tasks_count = await session.scalar(select(func.count(TaskORM.id))) or 0
+        
+        text = format_sys_stats(uptime_str, ram_mb, users_count, tasks_count, settings.whisper_enabled)
+        await message.answer(text, reply_markup=get_main_keyboard())
+        return
+
+    # User stats
     from app.services.statistics import StatisticsService
     stats_service = StatisticsService()
     
-    args = (message.text or "").split()
     period = "all_time"
-    if len(args) > 1 and args[1] in ("today", "week", "month"):
-        period = args[1]
+    if len(args) > 1 and args[1].lower() in ("today", "week", "month"):
+        period = args[1].lower()
         
     stats = await stats_service.get_stats(session, message.from_user.id, period)
 
@@ -230,6 +257,7 @@ async def cmd_help(message: types.Message) -> None:
         "/timeline — Day schedule (constraints + free windows)\n"
         "/recurring — Manage recurring tasks\n"
         "/stats — Statistics (today / week / month / all_time)\n"
+        "/stats sys — System statistics (uptime, RAM, users, tasks)\n"
         "/help — Show this message\n\n"
         "💡 You can also just write text or send a voice message about what needs to be done, "
         "and the AI planner will break it down into tasks."
