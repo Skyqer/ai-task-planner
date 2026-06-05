@@ -19,7 +19,6 @@ Send the bot a text or voice message — it will extract tasks, generate descrip
 - **Voice recognition** via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — an optimized CTranslate2 implementation of the OpenAI Whisper model.
 - Automatic language detection (Russian, Ukrainian, English).
 - If recognition confidence is low, the bot asks for confirmation before processing.
-- Audio conversion from OGG to WAV via **ffmpeg**.
 
 ### 📋 Task Management
 - **CRUD** — create, view, complete, cancel, delete tasks.
@@ -207,7 +206,6 @@ Send the bot a text or voice message — it will extract tasks, generate descrip
 - Python **3.14+**
 - PostgreSQL **16+**
 - [uv](https://docs.astral.sh/uv/) — package manager
-- [ffmpeg](https://ffmpeg.org/) — for voice messages
 
 ### 1. Clone and Setup
 

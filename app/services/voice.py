@@ -206,9 +206,6 @@ class VoiceTranscriptionService:
         Returns:
             TranscriptionResult with text, language, and confidence.
         """
-        # Convert to WAV if needed (Telegram sends OGG/OGA)
-        wav_path = await self._ensure_wav(audio_path)
-
         try:
             self._load_model()
         except Exception:
@@ -229,7 +226,7 @@ class VoiceTranscriptionService:
             t_start = time.monotonic()
 
             segments, info = self._model.transcribe(
-                str(wav_path),
+                str(audio_path),
                 beam_size=1,
                 language=None,  # auto-detect
                 vad_filter=True,
@@ -284,34 +281,5 @@ class VoiceTranscriptionService:
         finally:
             # Schedule auto-unload timer
             self._schedule_unload()
-            # Clean up temporary WAV if we created one
-            if wav_path != audio_path and wav_path.exists():
-                wav_path.unlink(missing_ok=True)
 
-    @staticmethod
-    async def _ensure_wav(audio_path: Path) -> Path:
-        """Convert audio to WAV format if it isn't already."""
-        if audio_path.suffix.lower() == ".wav":
-            return audio_path
 
-        wav_path = audio_path.with_suffix(".wav")
-        try:
-            proc = subprocess.run(
-                [
-                    "ffmpeg", "-y", "-i", str(audio_path),
-                    "-ar", "16000", "-ac", "1", "-f", "wav",
-                    str(wav_path),
-                ],
-                capture_output=True,
-                timeout=30,
-            )
-            if proc.returncode != 0:
-                logger.error("ffmpeg conversion failed: %s", proc.stderr.decode())
-                return audio_path  # Try with original file
-            return wav_path
-        except FileNotFoundError:
-            logger.error("ffmpeg not found — install it for voice support")
-            return audio_path
-        except subprocess.TimeoutExpired:
-            logger.error("ffmpeg conversion timed out")
-            return audio_path
