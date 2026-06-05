@@ -247,7 +247,7 @@ async def handle_voice(message: types.Message, session: AsyncSession, state: FSM
         return
 
     if not voice:
-        await message.answer("⚠️ Voice input is not supported (model not loaded).")
+        await message.answer("⚠️ Голосовые сообщения временно недоступны.")
         return
 
     await message.answer("🎤 Recognizing voice message...")

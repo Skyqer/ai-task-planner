@@ -66,10 +66,15 @@ async def lifespan(app: FastAPI):
     
     from app.services.rescheduler import ReschedulerService
     timeline = TimelineEngine(constraints, settings.timezone, weather)
-    voice = VoiceTranscriptionService(
-        model_size=settings.whisper_model_size,
-        unload_seconds=settings.whisper_unload_seconds,
-    )
+    if settings.whisper_enabled:
+        voice = VoiceTranscriptionService(
+            model_size=settings.whisper_model_size,
+            unload_seconds=settings.whisper_unload_seconds,
+        )
+        logger.info("Whisper voice transcription enabled (model=%s)", settings.whisper_model_size)
+    else:
+        voice = None
+        logger.info("Whisper voice transcription disabled (WHISPER_ENABLED=false)")
     rescheduler = ReschedulerService(timeline, settings.timezone)
 
     # 4. Set planner for REST API
@@ -90,6 +95,10 @@ async def lifespan(app: FastAPI):
 
         bot = create_bot(settings)
         dp = create_dispatcher()
+
+        # Set up Telegram error notifications (ERROR + CRITICAL → admin chat)
+        from app.transport.telegram.error_notifier import setup_error_notifier
+        error_handler = setup_error_notifier(bot, settings.telegram_admin_chat_id)
 
         # Inject dependencies via middleware
         dp.message.middleware(LoggingMiddleware())
@@ -186,5 +195,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 app.include_router(api_router)

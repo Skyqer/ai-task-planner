@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     # ── Telegram ─────────────────────────────────────────────────────
     telegram_bot_token: str = ""
+    telegram_admin_chat_id: str = ""  # Chat ID for ERROR/CRITICAL notifications
     bot_mode: Literal["polling", "webhook"] = "polling"
     webhook_url: str = ""
     webhook_secret: str = ""
@@ -57,6 +58,7 @@ class Settings(BaseSettings):
     llm_max_retries: int = 3
 
     # ── Voice ────────────────────────────────────────────────────────
+    whisper_enabled: bool = True
     whisper_model_size: str = "base"
     whisper_unload_seconds: int = 120  # 0 = keep model in memory forever
 

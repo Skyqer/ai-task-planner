@@ -54,15 +54,24 @@ async def main() -> None:
         timezone_name=settings.timezone,
     )
     timeline = TimelineEngine(constraints, settings.timezone, weather)
-    voice = VoiceTranscriptionService(
-        model_size=settings.whisper_model_size,
-        unload_seconds=settings.whisper_unload_seconds,
-    )
+    if settings.whisper_enabled:
+        voice = VoiceTranscriptionService(
+            model_size=settings.whisper_model_size,
+            unload_seconds=settings.whisper_unload_seconds,
+        )
+        logger.info("Whisper voice transcription enabled (model=%s)", settings.whisper_model_size)
+    else:
+        voice = None
+        logger.info("Whisper voice transcription disabled (WHISPER_ENABLED=false)")
     rescheduler = ReschedulerService(timeline)
 
     # 4. Setup Bot and Dispatcher
     bot = create_bot(settings)
     dp = create_dispatcher()
+
+    # Set up Telegram error notifications (ERROR + CRITICAL → admin chat)
+    from app.transport.telegram.error_notifier import setup_error_notifier
+    error_handler = setup_error_notifier(bot, settings.telegram_admin_chat_id)
 
     dp.update.middleware(DatabaseMiddleware())
     dp.update.middleware(DependencyMiddleware({
