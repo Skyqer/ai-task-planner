@@ -70,7 +70,17 @@ class MemoryManager:
         """Store a message and trigger summarization if threshold reached."""
         msg_role = MessageRole.USER if role == "user" else MessageRole.ASSISTANT
         await repo.add_message(session, user_id, msg_role, content)
-        await self._summarize_if_needed(session, user_id)
+        
+        count = await repo.count_messages(session, user_id)
+        if count > self._summary_threshold:
+            import asyncio
+            asyncio.create_task(self._background_summarize(user_id))
+
+    async def _background_summarize(self, user_id: int) -> None:
+        """Run summarization in a separate DB session so it doesn't block the request."""
+        from app.db.engine import async_session_factory
+        async with async_session_factory() as session:
+            await self._summarize_if_needed(session, user_id)
 
     async def get_context(
         self,
