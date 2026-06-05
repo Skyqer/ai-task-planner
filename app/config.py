@@ -2,6 +2,7 @@
 
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +19,18 @@ class Settings(BaseSettings):
     database_url: str = (
         ""
     )
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _fix_database_url(cls, v: str) -> str:
+        """Convert Heroku-style postgres:// to postgresql+asyncpg://."""
+        if not v:
+            return v
+        if v.startswith("postgres://"):
+            v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif v.startswith("postgresql://"):
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
 
     # ── LLM Provider ─────────────────────────────────────────────────
     llm_provider: Literal["openrouter", "ollama", "google"] = "openrouter"
