@@ -524,7 +524,9 @@ async def handle_reschedule_action(
         
     from datetime import datetime
     try:
-        new_time = datetime.fromisoformat(callback_data.new_time)
+        # Decode '.' back to ':' (encoded to avoid aiogram callback_data separator conflict)
+        raw_time = callback_data.new_time.replace(".", ":")
+        new_time = datetime.fromisoformat(raw_time)
     except ValueError:
         await callback.answer("Error: invalid time format.")
         return
