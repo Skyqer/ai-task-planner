@@ -23,7 +23,7 @@ class RecurrenceActionCallback(CallbackData, prefix="recur"):
     recur_id: str
 
 
-class RescheduleActionCallback(CallbackData, prefix="resched"):
-    action: str  # "accept", "dismiss"
-    task_id: str
-    new_time: str = ""
+class RescheduleActionCallback(CallbackData, prefix="rs"):
+    action: str  # "a" (accept), "d" (dismiss)
+    task_id: str  # UUID without dashes (32 chars)
+    new_time: str = ""  # compact format: YYYYMMDDTHHMMSS

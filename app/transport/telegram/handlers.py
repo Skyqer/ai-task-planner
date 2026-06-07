@@ -514,7 +514,7 @@ async def handle_reschedule_action(
     if not callback.message:
         return
         
-    if callback_data.action == "dismiss":
+    if callback_data.action == "d":
         await callback.answer("Left unchanged.")
         try:
             await callback.message.edit_text(callback.message.text + "\n\n❌ <b>Left unchanged</b>")
@@ -524,12 +524,18 @@ async def handle_reschedule_action(
         
     from datetime import datetime
     try:
-        # Decode '.' back to ':' (encoded to avoid aiogram callback_data separator conflict)
-        raw_time = callback_data.new_time.replace(".", ":")
-        new_time = datetime.fromisoformat(raw_time)
+        # Parse compact time format: YYYYMMDDTHHMMSS
+        new_time = datetime.strptime(callback_data.new_time, "%Y%m%dT%H%M%S")
     except ValueError:
         await callback.answer("Error: invalid time format.")
         return
+    
+    # Restore UUID dashes from compact 32-char hex
+    raw_id = callback_data.task_id
+    if len(raw_id) == 32 and "-" not in raw_id:
+        task_id_str = f"{raw_id[:8]}-{raw_id[8:12]}-{raw_id[12:16]}-{raw_id[16:20]}-{raw_id[20:]}"
+    else:
+        task_id_str = raw_id
         
     from app.services.rescheduler import ReschedulerService
     if not timeline:
@@ -537,7 +543,7 @@ async def handle_reschedule_action(
         return
         
     rescheduler = ReschedulerService(timeline)
-    success = await rescheduler.apply_suggestion(session, callback_data.task_id, new_time)
+    success = await rescheduler.apply_suggestion(session, task_id_str, new_time)
         
     if success:
         await callback.answer("✅ Task rescheduled!")

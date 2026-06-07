@@ -247,22 +247,29 @@ def get_recurrences_keyboard(recurrences) -> InlineKeyboardMarkup | None:
 def get_reschedule_keyboard(task_id: str, new_time_iso: str) -> InlineKeyboardMarkup:
     """Get an inline keyboard for rescheduling suggestions."""
     from app.transport.telegram.callbacks import RescheduleActionCallback
-    # Encode ':' as '.' to avoid conflict with aiogram's callback_data separator
-    safe_time = new_time_iso[:20].replace(":", ".")
+    # Strip dashes from UUID to save 4 bytes
+    compact_id = task_id.replace("-", "")
+    # Use compact time format: YYYYMMDDTHHMMSS (15 chars instead of ~25)
+    from datetime import datetime
+    try:
+        dt = datetime.fromisoformat(new_time_iso)
+        compact_time = dt.strftime("%Y%m%dT%H%M%S")
+    except (ValueError, TypeError):
+        compact_time = new_time_iso[:15].replace(":", "").replace("-", "")
     builder = InlineKeyboardBuilder()
     builder.button(
         text="✅ Agree",
         callback_data=RescheduleActionCallback(
-            action="accept", 
-            task_id=task_id, 
-            new_time=safe_time,
+            action="a", 
+            task_id=compact_id, 
+            new_time=compact_time,
         ).pack(),
     )
     builder.button(
         text="❌ Leave as is",
         callback_data=RescheduleActionCallback(
-            action="dismiss", 
-            task_id=task_id, 
+            action="d", 
+            task_id=compact_id, 
             new_time=""
         ).pack(),
     )
