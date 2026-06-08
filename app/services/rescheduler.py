@@ -7,7 +7,7 @@ and existing schedule.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -136,15 +136,30 @@ class ReschedulerService:
 
         # Determine whether it was a fixed time or deadline
         # If both, update both. If none, set deadline.
+        time_with_tz = self._to_fixed_offset_time(new_time)
+
         updated = False
         if task.fixed_time_date:
             task.fixed_time_date = new_time.date()
-            task.fixed_time_time = new_time.time()
+            task.fixed_time_time = time_with_tz
             updated = True
         
         if task.deadline_date or not updated:
             task.deadline_date = new_time.date()
-            task.deadline_time = new_time.time()
+            task.deadline_time = time_with_tz
             
         await session.commit()
         return True
+
+    @staticmethod
+    def _to_fixed_offset_time(dt: datetime):
+        """Extract time with a fixed UTC offset from an aware datetime.
+
+        PostgreSQL TIME WITH TIME ZONE only accepts fixed offsets,
+        not named timezones like zoneinfo.ZoneInfo.
+        """
+        utc_offset = dt.utcoffset()
+        if utc_offset is None:
+            return dt.time()
+        fixed_tz = timezone(utc_offset)
+        return dt.timetz().replace(tzinfo=fixed_tz)
