@@ -136,6 +136,9 @@ class ReschedulerService:
 
         # Determine whether it was a fixed time or deadline
         # If both, update both. If none, set deadline.
+        if new_time.tzinfo is None:
+            new_time = new_time.replace(tzinfo=self._tz)
+            
         time_with_tz = self._to_fixed_offset_time(new_time)
 
         updated = False
